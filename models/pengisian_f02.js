@@ -1,0 +1,62 @@
+'use strict';
+const {
+  Model
+} = require('sequelize');
+module.exports = (sequelize, DataTypes) => {
+  class Pengisian_f02 extends Model {
+    static associate(models) {
+      Pengisian_f02.belongsTo(models.Opd, {
+        foreignKey: 'id_opd',
+        as: 'opd'
+      });
+
+      Pengisian_f02.belongsTo(models.Evaluator_periode_penilaian, {
+        foreignKey: 'id_evaluator_periode_penilaian',
+        as: 'evaluator_periode_penilaian'
+      });
+
+      Pengisian_f02.hasMany(models.nilai_indikator, {
+        foreignKey: 'id_pengisian_f02',
+        as: 'nilai_indikators'
+      });
+
+      Pengisian_f02.hasMany(models.Nilai_aspek, {
+        foreignKey: 'id_pengisian_f02',
+        as: 'nilai_aspeks'
+      });
+
+      Pengisian_f02.hasOne(models.Nilai_akhir, {
+        foreignKey: 'id_pengisian_f02',
+        as: 'nilai_akhir'
+      });
+    }
+  }
+  Pengisian_f02.init({
+    id_pengisian_f02: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+      allowNull: false
+    },
+    id_opd: {
+      type: DataTypes.CHAR(36),
+      allowNull: false,
+      references: {
+        model: 'Opds',
+        key: 'id_opd'
+      }
+    },
+    id_evaluator_periode_penilaian: {
+      type: DataTypes.CHAR(36),
+      allowNull: false,
+      references: {
+        model: 'Evaluator_periode_penilaians',
+        key: 'id_evaluator_periode_penilaian'
+      }
+    }
+  }, {
+    sequelize,
+    modelName: 'Pengisian_f02',
+  });
+  return Pengisian_f02;
+};
