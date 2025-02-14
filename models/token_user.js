@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     expired_at: {
       type: DataTypes.DATE,
-      allowNull: false
+      allowNull: false,
     }
   }, {
     sequelize,

@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4
     },
-    emai:{
+    email:{
       type: DataTypes.STRING(50),
       allowNull: false
     },

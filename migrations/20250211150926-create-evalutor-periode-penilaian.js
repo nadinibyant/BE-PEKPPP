@@ -36,6 +36,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Evalutor_periode_penilaians');
+    await queryInterface.dropTable('Evaluator_periode_penilaians');
   }
 };
