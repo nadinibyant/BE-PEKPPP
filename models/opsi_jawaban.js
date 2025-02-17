@@ -18,10 +18,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Opsi_jawaban.init({
     id_opsi_jawaban: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     teks_opsi: {
       type: DataTypes.STRING,
@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     id_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pertanyaans',

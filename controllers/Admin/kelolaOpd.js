@@ -15,14 +15,31 @@ const tambahOpd = async (req,res) => {
         }
 
         if (password.length < 8) {
-            return res.status(400).json({success: false, message: 'Password minimal 8 karakter'})
+            return res.status(400).json({success: false, status:400, message: 'Password minimal 8 karakter'})
         }
 
         const hashPass = await bcrypt.hash(password, 10)
+
         const findOpd = await db.Opd.findOne({where:{nama_opd:nama}})
         if (findOpd) {
             await transaction.rollback()
-            return res.status(400).json({success: false, message: 'Nama opd telah digunakan'})
+            return res.status(400).json({success: false, status:400, message: 'Nama opd telah digunakan'})
+        }
+
+        const findEmail = await db.Opd.findOne({
+            include: [
+                {
+                    model: db.User,
+                    as: 'user',
+                    where:{
+                        email: email
+                    }
+                }
+            ]
+        })
+
+        if (findEmail) {
+            return res.status(400).json({success: false, status:400, message: 'Email sudah digunakan'})
         }
 
         const addUser = await db.User.create({
@@ -70,7 +87,14 @@ const editOpd = async (req,res) => {
     try {
         const {id_user} = req.params
         const {nama, email, password, konfirmasiPass, alamat} = req.body
-        const findUser = await db.User.findByPk(id_user, {transaction})
+        const findUser = await db.User.findByPk(id_user, {
+            include: [
+                {
+                    model: db.Opd,
+                    as: 'opd'
+                }
+            ]
+        }, {transaction})
 
         if (!findUser) {
             await transaction.rollback()
@@ -82,6 +106,21 @@ const editOpd = async (req,res) => {
         }
 
         const updateData = {email}
+
+        if (email && email !== findUser.email) {
+            const existingEmail = await db.User.findOne({
+                where: {
+                    email,
+                    id_user: { [db.Sequelize.Op.ne]: id_user } 
+                },
+                transaction
+            })
+
+            if (existingEmail) {
+                return res.status(400).json({success:false, status:400, message: 'Email sudah digunakan'})
+            }
+            updateData.email = email
+        }
 
         if (password) {
             if (password.length < 8) {
@@ -108,8 +147,8 @@ const editOpd = async (req,res) => {
         })
 
         await db.Opd.update({
-            nama_opd: nama,
-            alamat
+            nama_opd: nama || findUser.opd.nama_opd,
+            alamat: alamat || findUser.opd.alamat
         }, {
             where:{id_opd:id_user},
             transaction

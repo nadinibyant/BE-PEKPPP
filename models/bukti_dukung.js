@@ -19,10 +19,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Bukti_dukung.init({
     id_bukti_dukung: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nama_bukti_dukung: {
       type: DataTypes.TEXT,
@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     id_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Indikators',

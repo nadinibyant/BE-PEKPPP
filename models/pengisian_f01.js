@@ -28,10 +28,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Pengisian_f01.init({
     id_pengisian_f01: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     status_pengisian: {
       type: DataTypes.STRING(20),

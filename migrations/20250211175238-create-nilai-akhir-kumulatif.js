@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Nilai_akhir_kumulatifs', {
       id_nilai_kumulatif: {
-        type: Sequelize.INTEGER,
-        allowNull:false,
+        type: Sequelize.CHAR(36),
+        allowNull: false,
         primaryKey: true,
-        autoIncrement:true
+        defaultValue: Sequelize.UUIDV4
       },
       total_kumulatif: {
         type: Sequelize.DECIMAL(10,2),

@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Skala_indikators', {
       id_skala: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
-        autoIncrement:true,
-        primaryKey: true
+        primaryKey: true,
+        defaultValue: Sequelize.UUIDV4
       },
       nilai_skala: {
         type: Sequelize.INTEGER(2),
@@ -18,7 +18,7 @@ module.exports = {
         allowNull:false
       },
       id_indikator: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull:false,
         references: {
           model: 'Indikators',

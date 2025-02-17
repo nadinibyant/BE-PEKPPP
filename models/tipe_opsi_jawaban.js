@@ -13,10 +13,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Tipe_opsi_jawaban.init({
     id_tipe_opsi: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nama_tipe: {
       type: DataTypes.STRING(100),
@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     id_tipe_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Tipe_pertanyaans',

@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Pertanyaans', {
       id_pertanyaan: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         primaryKey: true,
-        autoIncrement: true
+        defaultValue: Sequelize.UUIDV4
       },
       teks_pertanyaan: {
         type: Sequelize.TEXT,
@@ -22,7 +22,7 @@ module.exports = {
         allowNull: true
       },
       pertanyaan_id_pertanyaan: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: true,
         references: {
           model: 'Pertanyaans',
@@ -30,7 +30,7 @@ module.exports = {
         }
       },
       tipe_pertanyaan_id_tipe_pertanyaan: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Tipe_pertanyaans',
@@ -38,7 +38,7 @@ module.exports = {
         }
       },
       indikator_id_indikator: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Indikators',

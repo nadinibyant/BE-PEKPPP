@@ -4,17 +4,17 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('nilai_indikators', {
       id_nilai_indikator: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
-        autoIncrement: true,
-        primaryKey: true
+        primaryKey: true,
+        defaultValue: Sequelize.UUIDV4
       },
       nilai_diperolah: {
         type: Sequelize.DECIMAL(10,2),
         allowNull: false,
       },
       id_skala: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Skala_indikators',
@@ -22,7 +22,7 @@ module.exports = {
         }
       },
       id_pengisian_f02: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Pengisian_f02s',
@@ -30,7 +30,7 @@ module.exports = {
         }
       },
       id_indikator: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Indikators',

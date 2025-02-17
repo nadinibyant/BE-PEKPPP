@@ -18,10 +18,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Nilai_aspek.init({
     id_nilai_aspek: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     total_nilai_indikator: {
       type: DataTypes.DECIMAL(10,2),
@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_pengisian_f02: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pengisian_f02s',

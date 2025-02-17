@@ -41,10 +41,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Indikator.init({
     id_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nama_indikator: {
       type: DataTypes.TEXT,

@@ -18,10 +18,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Nilai_akhir_kumulatif.init({
     id_nilai_kumulatif: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     total_kumulatif: {
       type: DataTypes.DECIMAL(10,2),

@@ -12,10 +12,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Token_user.init({
     id_token: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     token: {
       type: DataTypes.TEXT,

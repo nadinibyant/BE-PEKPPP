@@ -23,10 +23,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Izin_hasil_penilaian.init({
     id_izin_hasil_penilaian: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     id_opd: {
       type: DataTypes.CHAR(36),

@@ -4,17 +4,17 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Bukti_dukung_uploads', {
       id_bukti_upload: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
-        autoIncrement: true,
-        primaryKey: true
+        primaryKey: true,
+        defaultValue: Sequelize.UUIDV4
       },
       nama_file: {
         type: Sequelize.STRING,
         allowNull: false
       },
       id_bukti_dukung: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Bukti_dukungs',
@@ -22,7 +22,7 @@ module.exports = {
         }
       },
       id_pengisian_f01: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Pengisian_f01s',
@@ -30,7 +30,7 @@ module.exports = {
         }
       },
       id_indikator: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Indikators',

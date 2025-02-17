@@ -24,17 +24,17 @@ module.exports = (sequelize, DataTypes) => {
   }
   Bukti_dukung_upload.init({
     id_bukti_upload: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nama_file: {
       type: DataTypes.STRING,
       allowNull: false
     },
     id_bukti_dukung: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Bukti_dukungs',
@@ -42,7 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_pengisian_f01: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pengisian_f01s',
@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Indikators',

@@ -19,10 +19,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Tipe_pertanyaan.init({
     id_tipe_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nama_jenis: {
       type: DataTypes.STRING,

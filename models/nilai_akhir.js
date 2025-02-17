@@ -13,17 +13,17 @@ module.exports = (sequelize, DataTypes) => {
   }
   Nilai_akhir.init({
     id_nilai_akhir: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     total_nilai: {
       type: DataTypes.DECIMAL(10,2),
       allowNull: false
     },
     id_pengisian_f02: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       unique: true,
       references: {

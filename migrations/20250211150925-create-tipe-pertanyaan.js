@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Tipe_pertanyaans', {
       id_tipe_pertanyaan: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         primaryKey: true,
-        autoIncrement: true
+        defaultValue: Sequelize.UUIDV4
       },
       nama_jenis: {
         type: Sequelize.STRING,

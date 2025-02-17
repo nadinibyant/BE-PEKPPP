@@ -23,17 +23,17 @@ module.exports = (sequelize, DataTypes) => {
   }
   Jawaban.init({
     id_jawaban: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     jawaban_text: {
       type: DataTypes.TEXT,
       allowNull: true
     },
     id_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pertanyaans',
@@ -41,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_opsi_jawaban: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: true,
       references: {
         model: 'Opsi_jawabans',
@@ -49,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_pengisian_f01: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pengisian_f01s',

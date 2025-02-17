@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Indikators', {
       id_indikator: {
-        type: Sequelize.INTEGER,
-        autoIncrement:true,
+        type: Sequelize.CHAR(36),
+        allowNull: false,
         primaryKey: true,
-        allowNull: false
+        defaultValue: Sequelize.UUIDV4
       },
       nama_indikator: {
         type: Sequelize.TEXT,

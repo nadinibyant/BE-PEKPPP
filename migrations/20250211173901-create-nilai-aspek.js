@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Nilai_aspeks', {
       id_nilai_aspek: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
-        autoIncrement: true,
-        primaryKey: true
+        primaryKey: true,
+        defaultValue: Sequelize.UUIDV4
       },
       total_nilai_indikator: {
         type: Sequelize.DECIMAL(10,2),
@@ -22,7 +22,7 @@ module.exports = {
         }
       },
       id_pengisian_f02: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         references: {
           model: 'Pengisian_f02s',

@@ -23,10 +23,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   nilai_indikator.init({
     id_nilai_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     nilai_diperolah: {
       type: DataTypes.DECIMAL(10,2),
@@ -34,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
       comment: 'Ini untuk penjumlahan dari seluruh nilai masing-masing indikator yang diberikan evaluator'
     },
     id_skala: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Skala_indikators',
@@ -42,7 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_pengisian_f02: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Pengisian_f02s',
@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     id_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Indikators',

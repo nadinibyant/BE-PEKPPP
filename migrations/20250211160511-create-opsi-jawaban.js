@@ -4,10 +4,10 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('Opsi_jawabans', {
       id_opsi_jawaban: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull: false,
         primaryKey: true,
-        autoIncrement:true
+        defaultValue: Sequelize.UUIDV4
       },
       teks_opsi: {
         type: Sequelize.STRING,
@@ -22,7 +22,7 @@ module.exports = {
         allowNull: false
       },
       id_pertanyaan: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.CHAR(36),
         allowNull:false,
         references: {
           model: 'Pertanyaans',

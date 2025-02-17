@@ -34,10 +34,10 @@ module.exports = (sequelize, DataTypes) => {
   }
   Pertanyaan.init({
     id_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
+      allowNull: false,
       primaryKey: true,
-      autoIncrement: true,
-      allowNull: false
+      defaultValue: DataTypes.UUIDV4
     },
     teks_pertanyaan: {
       type: DataTypes.TEXT,
@@ -52,7 +52,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     pertanyaan_id_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: true,
       references: {
         model: 'Pertanyaans',
@@ -60,7 +60,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     tipe_pertanyaan_id_tipe_pertanyaan: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Tipe_pertanyaans',
@@ -68,7 +68,7 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     indikator_id_indikator: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       references: {
         model: 'Indikators',
