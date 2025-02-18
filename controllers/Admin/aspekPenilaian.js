@@ -709,19 +709,42 @@ const detailAspek = async (req,res) => {
                                 {
                                     model: db.Pertanyaan,
                                     as: 'Pertanyaans',
-                                    attributes: ['id_pertanyaan', 'teks-Pertanyaan', 'trigger_value', 'urutan'],
+                                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
                                     where: {
                                         pertanyaan_id_pertanyaan: null
                                     },
-                                    // include: [
-                                    //     {
-                                    //         model:
-                                    //     }
-                                    // ]
+                                    include: [
+                                        {
+                                            model: db.Pertanyaan,
+                                            as: 'ChildPertanyaans',
+                                            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                                            include: [
+                                                {
+                                                    model:db.Tipe_pertanyaan,
+                                                    as: 'TipePertanyaan',
+                                                    attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
+                                                },
+                                                {
+                                                    model: db.Opsi_jawaban,
+                                                    as:'OpsiJawabans',
+                                                    attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                                                    order: [['urutan', 'ASC']]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            model:db.Tipe_pertanyaan,
+                                            as: 'TipePertanyaan',
+                                            attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
+                                        },
+                                        {
+                                            model: db.Opsi_jawaban,
+                                            as:'OpsiJawabans',
+                                            attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                                            order: [['urutan', 'ASC']]
+                                        }
+                                    ]
                                 },
-                                // {
-                                //     model:
-                                // }
                             ]
                         }
                     ]
@@ -729,8 +752,61 @@ const detailAspek = async (req,res) => {
                 {
                     model: db.Indikator,
                     as: 'Indikators',
-                    attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan'],
-                    order: [['urutan', 'ASC']]
+                    attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
+                    order: [['urutan', 'ASC']],
+                    include: [
+                        {
+                            model: db.Bukti_dukung,
+                            as: 'BuktiDukungs',
+                            attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
+                            order: [['urutan', 'ASC']]
+                        },
+                        {
+                            model: db.Skala_indikator,
+                            as: "skala_indikators",
+                            attributes:['id_skala', 'deskripsi_skala', 'nilai_skala'],
+                            order: [['nilai_skala', 'ASC']]
+                        },
+                        {
+                            model: db.Pertanyaan,
+                            as: 'Pertanyaans',
+                            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                            where: {
+                                pertanyaan_id_pertanyaan: null
+                            },
+                            include: [
+                                {
+                                    model: db.Pertanyaan,
+                                    as: 'ChildPertanyaans',
+                                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                                    include: [
+                                        {
+                                            model:db.Tipe_pertanyaan,
+                                            as: 'TipePertanyaan',
+                                            attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
+                                        },
+                                        {
+                                            model: db.Opsi_jawaban,
+                                            as:'OpsiJawabans',
+                                            attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                                            order: [['urutan', 'ASC']]
+                                        }
+                                    ]
+                                },
+                                {
+                                    model:db.Tipe_pertanyaan,
+                                    as: 'TipePertanyaan',
+                                    attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
+                                },
+                                {
+                                    model: db.Opsi_jawaban,
+                                    as:'OpsiJawabans',
+                                    attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                                    order: [['urutan', 'ASC']]
+                                }
+                            ]
+                        },
+                    ]
                 }
             ]
         })
