@@ -490,10 +490,8 @@ const tambahPertanyaan = async (req,res) => {
             urutan: nextUrutan
         }, {transaction})
 
-        //ini untuk atur berdasar tipe opsi jawabannya
         const { nama_tipe, allow_other, has_trigger } = tipePertanyaan.Tipe_opsi_jawaban;
 
-        // jika tipe pertanyaan nya tu butuh opsi jawaban pilihan tunggal atau jamak
         if (nama_tipe !== 'text') {
             if (!opsi_jawaban || opsi_jawaban.length === 0) {
                 throw new ValidationError('Opsi jawaban harus diisi')
@@ -506,7 +504,6 @@ const tambahPertanyaan = async (req,res) => {
                 id_pertanyaan: addPertanyaanUtama.id_pertanyaan
             }))
 
-            //jika allow other = true
             if (allow_other) {
                 opsiJawabanData.push({
                     teks_opsi: "Lainnya",
@@ -518,44 +515,46 @@ const tambahPertanyaan = async (req,res) => {
 
             await db.Opsi_jawaban.bulkCreate(opsiJawabanData, {transaction})
 
-            //jika ada trigger
             if (has_trigger && trigger_jawaban) {
-
                 const {trigger_value, sub_pertanyaan} = trigger_jawaban
 
-                if (sub_pertanyaan) {
-                    const lastSubUrutan = await db.Pertanyaan.findOne({
-                        where: { 
+                if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
+                    // Loop  sub pertanyaan
+                    for(let i = 0; i < sub_pertanyaan.length; i++) {
+                        const subQuestion = sub_pertanyaan[i];
+                        
+                        const lastSubUrutan = await db.Pertanyaan.findOne({
+                            where: { 
+                                indikator_id_indikator: id_indikator,
+                                pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan
+                            },
+                            order: [['urutan', 'DESC']],
+                            transaction
+                        });
+
+                        const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
+
+                        const newSubPertanyaan = await db.Pertanyaan.create({
+                            teks_pertanyaan: subQuestion.teks_pertanyaan,
+                            tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
                             indikator_id_indikator: id_indikator,
-                            pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan
-                        },
-                        order: [['urutan', 'DESC']],
-                        transaction
-                    });
+                            pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan, 
+                            trigger_value: trigger_value,
+                            urutan: nextSubUrutan,
+                            keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
+                        }, {transaction})
 
-                    const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
+                        if (subQuestion.opsi_jawaban) {
+                            const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi,index) => ({
+                                teks_opsi: opsi.teks_opsi,
+                                memiliki_isian_lainnya: false,
+                                urutan: index + 1,
+                                id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                            }))
 
-                    const newSubPertanyaan = await db.Pertanyaan.create({
-                        teks_pertanyaan: sub_pertanyaan.teks_pertanyaan,
-                        tipe_pertanyaan_id_tipe_pertanyaan: sub_pertanyaan.id_tipe_pertanyaan,
-                        indikator_id_indikator: id_indikator,
-                        pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan, 
-                        trigger_value: trigger_value,
-                        urutan: nextSubUrutan,
-                        keterangan_trigger
-                    }, {transaction})
-
-                    if (sub_pertanyaan.opsi_jawaban) {
-                        const subOpsiJawaban = sub_pertanyaan.opsi_jawaban.map((opsi,index) => ({
-                            teks_opsi: opsi.teks_opsi,
-                            memiliki_isian_lainnya: false,
-                            urutan: index + 1,
-                            id_pertanyaan: newSubPertanyaan.id_pertanyaan
-                        }))
-
-                        await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, {transaction})
+                            await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, {transaction})
+                        }
                     }
-
                 }
             }
         }
@@ -685,30 +684,35 @@ const detailAspek = async (req,res) => {
                 {
                     model: db.Aspek_penilaian,
                     as: 'ChildAspeks',
+                    required: false,
                     attributes: ['id_aspek_penilaian', 'nama_aspek', 'urutan'],
                     order: [['urutan', 'ASC']],
                     include: [
                         {
                             model: db.Indikator,
                             as: 'Indikators',
+                            required: false,
                             attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
                             order: [['urutan', 'ASC']],
                             include: [
                                 {
                                     model: db.Bukti_dukung,
                                     as: 'BuktiDukungs',
+                                    required: false,
                                     attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
                                     order: [['urutan', 'ASC']]
                                 },
                                 {
                                     model: db.Skala_indikator,
                                     as: "skala_indikators",
+                                    required: false,
                                     attributes:['id_skala', 'deskripsi_skala', 'nilai_skala'],
                                     order: [['nilai_skala', 'ASC']]
                                 },
                                 {
                                     model: db.Pertanyaan,
                                     as: 'Pertanyaans',
+                                    required: false,
                                     attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
                                     where: {
                                         pertanyaan_id_pertanyaan: null
@@ -717,6 +721,7 @@ const detailAspek = async (req,res) => {
                                         {
                                             model: db.Pertanyaan,
                                             as: 'ChildPertanyaans',
+                                            required: false,
                                             attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
                                             include: [
                                                 {
@@ -735,11 +740,13 @@ const detailAspek = async (req,res) => {
                                         {
                                             model:db.Tipe_pertanyaan,
                                             as: 'TipePertanyaan',
+                                            required: false,
                                             attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
                                         },
                                         {
                                             model: db.Opsi_jawaban,
                                             as:'OpsiJawabans',
+                                            required: false,
                                             attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
                                             order: [['urutan', 'ASC']]
                                         }
@@ -752,24 +759,28 @@ const detailAspek = async (req,res) => {
                 {
                     model: db.Indikator,
                     as: 'Indikators',
+                    required: false,
                     attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
                     order: [['urutan', 'ASC']],
                     include: [
                         {
                             model: db.Bukti_dukung,
                             as: 'BuktiDukungs',
+                            required: false,
                             attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
                             order: [['urutan', 'ASC']]
                         },
                         {
                             model: db.Skala_indikator,
                             as: "skala_indikators",
+                            required: false,
                             attributes:['id_skala', 'deskripsi_skala', 'nilai_skala'],
                             order: [['nilai_skala', 'ASC']]
                         },
                         {
                             model: db.Pertanyaan,
                             as: 'Pertanyaans',
+                            required: false,
                             attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
                             where: {
                                 pertanyaan_id_pertanyaan: null
@@ -778,16 +789,19 @@ const detailAspek = async (req,res) => {
                                 {
                                     model: db.Pertanyaan,
                                     as: 'ChildPertanyaans',
+                                    required: false,
                                     attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
                                     include: [
                                         {
                                             model:db.Tipe_pertanyaan,
                                             as: 'TipePertanyaan',
+                                            required: false,
                                             attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
                                         },
                                         {
                                             model: db.Opsi_jawaban,
                                             as:'OpsiJawabans',
+                                            required: false,
                                             attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
                                             order: [['urutan', 'ASC']]
                                         }
@@ -796,11 +810,13 @@ const detailAspek = async (req,res) => {
                                 {
                                     model:db.Tipe_pertanyaan,
                                     as: 'TipePertanyaan',
+                                    required: false,
                                     attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
                                 },
                                 {
                                     model: db.Opsi_jawaban,
                                     as:'OpsiJawabans',
+                                    required: false,
                                     attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
                                     order: [['urutan', 'ASC']]
                                 }
@@ -846,4 +862,719 @@ const detailAspek = async (req,res) => {
     }
 }
 
-module.exports = {tambahAspek, tambahIndikator, tambahBuktiDukung, tambahSkalaIndikator, tipePertanyaan, tambahPertanyaan, allAspek, detailAspek}
+//edit aspek penilaian
+const editAspekPenilaian = async (req,res) => {
+    let transaction
+    try {
+        transaction = await sequelize.transaction()
+        const {id_aspek_penilaian} = req.params
+        const {nama_aspek, bobot_aspek, hasSubAspek, sub_aspek} = req.body
+
+        const findAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian, {
+            include: [
+                {
+                    model: db.Aspek_penilaian,
+                    as: 'ChildAspeks',
+                    attributes: ['id_aspek_penilaian', 'nama_aspek']
+                }
+            ],
+            attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek']
+        })
+
+        if (!findAspek) {
+            throw new ValidationError('Data aspek penilaian tidak ditemukan')
+        }
+
+        await findAspek.update({
+            nama_aspek,
+            bobot_aspek
+        }, {transaction})
+
+        if (hasSubAspek) {
+            await db.Aspek_penilaian.destroy({
+                where:{parent_id_aspek_penilaian: id_aspek_penilaian},
+                transaction
+            })
+
+            if (Array.isArray(sub_aspek) && sub_aspek.length > 0) {
+                const sub_aspek_data = sub_aspek.map((subAspek, index) => {
+                    if (!subAspek.nama_aspek) {
+                        throw new ValidationError(`Nama sub aspek ke-${index + 1} harus diisi`)
+                    }
+                    
+                    return {
+                        nama_aspek: subAspek.nama_aspek,
+                        bobot_aspek: subAspek.bobot_aspek || null,
+                        parent_id_aspek_penilaian: id_aspek_penilaian,
+                        urutan: index + 1
+                    }
+                })
+
+                await db.Aspek_penilaian.bulkCreate(sub_aspek_data, {
+                    transaction,
+                    validate: true 
+                })
+            }
+        } else {
+            await db.Aspek_penilaian.destroy({
+                where: {
+                    parent_id_aspek_penilaian: id_aspek_penilaian
+                },
+                transaction
+            });
+        }
+
+        await transaction.commit()
+
+        const updatedAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian, {
+            include: [
+                {
+                    model: db.Aspek_penilaian,
+                    as: 'ChildAspeks',
+                    attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek', 'urutan']
+                }
+            ]
+        });
+        return res.status(200).json({success: true, message: 'Data aspek penilaian berhasil di perbaharui', data: updatedAspek})
+
+    } catch (error) {
+        if (transaction) await transaction.rollback();
+        console.error(error)
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status:400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status:404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status:500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+//edit indikator
+const editIndikator = async (req,res) => {
+    let transaction
+    try {
+        transaction = await sequelize.transaction()
+        const {id_indikator} = req.params
+        const {id_aspek_penilaian, kode_indikator, nama_indikator, penjelasan} = req.body
+        const findIndikator = await db.Indikator.findByPk(id_indikator, {
+            include: [
+                {
+                    model: db.Aspek_penilaian,
+                    as: 'AspekPenilaian',
+                    required: false,
+                    attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek'],
+                }
+            ],
+            attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan']
+        })
+        if (!findIndikator) {
+            throw new ValidationError('Data indikator tidak ditemukan')
+        }
+
+        await db.Indikator.update({
+            id_aspek_penilaian: id_aspek_penilaian || findIndikator.AspekPenilaian.id_aspek_penilaian,
+            kode_indikator: kode_indikator || findIndikator.kode_indikator,
+            nama_indikator: nama_indikator || findIndikator.nama_indikator,
+            penjelasan: penjelasan || findIndikator.penjelasan
+        }, {
+            where:{
+                id_indikator
+            },
+            transaction
+        })
+
+        await transaction.commit()
+
+        const updatedData = await db.Indikator.findByPk(id_indikator, {
+            include: [{
+                model: db.Aspek_penilaian,
+                as: 'AspekPenilaian',
+                attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek']
+            }],
+            attributes: ['nama_indikator', 'kode_indikator', 'penjelasan', 'urutan']
+        })
+        return res.status(200).json({
+            success: true,
+            message: 'Data indikator berhasil diperbaharui',
+            data: updatedData
+        })
+
+    } catch (error) {
+        if (transaction) await transaction.rollback();
+        console.error(error)
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status:400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status:404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status:500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+//edit bukti dukung
+const editBuktiDukung = async (req,res) => {
+    let transaction
+    try {
+        transaction = await sequelize.transaction()
+        const {id_bukti_dukung} = req.params
+        const {nama_bukti_dukung} = req.body
+        const findBuktiDukung = await db.Bukti_dukung.findByPk(id_bukti_dukung, {transaction})
+        if (!findBuktiDukung) {
+            throw new ValidationError('Data bukti dukung tidak ditemukan')
+        }
+
+        await db.Bukti_dukung.update({
+            nama_bukti_dukung: nama_bukti_dukung || findBuktiDukung.nama_bukti_dukung
+        }, {
+            where:{id_bukti_dukung},
+            transaction
+        })
+
+        const updateData = await db.Bukti_dukung.findByPk(id_bukti_dukung, {
+            attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan']
+        })
+
+        await transaction.commit()
+        
+    
+        return res.status(200).json({success:true, status: 200, message: 'Data bukti dukung berhasil diperbaharu', data: updateData})
+
+    } catch (error) {
+        if (transaction) await transaction.rollback();
+        console.error(error)
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status:400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status:404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status:500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+//edit skala indikator
+const editSkalaIndikator = async (req,res) => {
+    let transaction 
+    try {
+        transaction = await sequelize.transaction()
+        const {id_skala} = req.params
+        const {deskripsi_skala} = req.body
+        const findSkala = await db.Skala_indikator.findByPk(id_skala, {transaction})
+        if (!findSkala) {
+            throw new ValidationError('Data skala indikator tidak ditemukan')
+        }
+
+        await db.Skala_indikator.update({
+            deskripsi_skala: deskripsi_skala || findSkala.deskripsi_skala
+        }, {
+            where: {id_skala},
+            transaction
+        })
+
+        const updateData = await db.Skala_indikator.findByPk(id_skala,{
+            attributes: ['id_skala', 'nilai_skala','deskripsi_skala']
+        })
+        await transaction.commit()
+
+        return res.status(200).json({success:true, status:200, message: 'Data skala indikator berhasil diperbaharui', data: updateData})
+    } catch (error) {
+        if (transaction) await transaction.rollback();
+        console.error(error)
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status:400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status:404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status:500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+
+//edit pertanyaan
+const editPertanyaan = async (req, res) => {
+    let transaction;
+    try {
+        transaction = await sequelize.transaction();
+
+        const { id_pertanyaan } = req.params;
+        const { 
+            teks_pertanyaan, 
+            id_tipe_pertanyaan, 
+            id_indikator, 
+            opsi_jawaban, 
+            trigger_jawaban, 
+            keterangan_trigger 
+        } = req.body;
+
+        const existingPertanyaan = await db.Pertanyaan.findByPk(id_pertanyaan, {
+            include: [
+                {
+                    model: db.Opsi_jawaban,
+                    as: 'OpsiJawabans'
+                },
+                {
+                    model: db.Pertanyaan,
+                    as: 'ChildPertanyaans',
+                    include: [
+                        {
+                            model: db.Opsi_jawaban,
+                            as: 'OpsiJawabans'
+                        }
+                    ]
+                }
+            ],
+            transaction
+        });
+
+        if (!existingPertanyaan) {
+            throw new NotFoundError('Pertanyaan tidak ditemukan');
+        }
+
+        if (!teks_pertanyaan || !id_tipe_pertanyaan || !id_indikator) {
+            throw new ValidationError('Pertanyaan, tipe pertanyaan, dan indikator harus diisi');
+        }
+
+        const findIndikator = await db.Indikator.findByPk(id_indikator, {transaction});
+        if (!findIndikator) {
+            throw new ValidationError('Data indikator tidak ditemukan');
+        }
+
+        const tipePertanyaan = await db.Tipe_pertanyaan.findByPk(id_tipe_pertanyaan, {
+            include: [
+                {
+                    model: db.Tipe_opsi_jawaban
+                }
+            ],
+            transaction
+        });
+
+        if (!tipePertanyaan) {
+            throw new ValidationError('Tipe pertanyaan tidak ditemukan');
+        }
+
+        await existingPertanyaan.update({
+            teks_pertanyaan,
+            tipe_pertanyaan_id_tipe_pertanyaan: id_tipe_pertanyaan,
+            indikator_id_indikator: id_indikator
+        }, {transaction});
+
+        const { nama_tipe, allow_other, has_trigger } = tipePertanyaan.Tipe_opsi_jawaban;
+
+        if (nama_tipe !== 'text') {
+            if (!opsi_jawaban || opsi_jawaban.length === 0) {
+                throw new ValidationError('Opsi jawaban harus diisi');
+            }
+
+            await db.Opsi_jawaban.destroy({
+                where: { id_pertanyaan: id_pertanyaan },
+                transaction
+            });
+
+            const opsiJawabanData = opsi_jawaban.map((opsi, index) => ({
+                teks_opsi: opsi.teks_opsi,
+                memiliki_isian_lainnya: false,
+                urutan: index + 1,
+                id_pertanyaan: id_pertanyaan
+            }));
+
+            if (allow_other) {
+                opsiJawabanData.push({
+                    teks_opsi: "Lainnya",
+                    memiliki_isian_lainnya: true,
+                    urutan: opsiJawabanData.length + 1,
+                    id_pertanyaan: id_pertanyaan
+                });
+            }
+
+            await db.Opsi_jawaban.bulkCreate(opsiJawabanData, {transaction});
+            if (has_trigger && trigger_jawaban) {
+                await db.Pertanyaan.destroy({
+                    where: { pertanyaan_id_pertanyaan: id_pertanyaan },
+                    transaction
+                });
+
+                const { trigger_value, sub_pertanyaan } = trigger_jawaban;
+
+                if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
+                    for(let i = 0; i < sub_pertanyaan.length; i++) {
+                        const subQuestion = sub_pertanyaan[i];
+                        
+                        const lastSubUrutan = await db.Pertanyaan.findOne({
+                            where: { 
+                                indikator_id_indikator: id_indikator,
+                                pertanyaan_id_pertanyaan: id_pertanyaan
+                            },
+                            order: [['urutan', 'DESC']],
+                            transaction
+                        });
+
+                        const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
+
+                        const newSubPertanyaan = await db.Pertanyaan.create({
+                            teks_pertanyaan: subQuestion.teks_pertanyaan,
+                            tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
+                            indikator_id_indikator: id_indikator,
+                            pertanyaan_id_pertanyaan: id_pertanyaan,
+                            trigger_value: trigger_value,
+                            urutan: nextSubUrutan,
+                            keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
+                        }, {transaction});
+
+                        if (subQuestion.opsi_jawaban) {
+                            const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi, index) => ({
+                                teks_opsi: opsi.teks_opsi,
+                                memiliki_isian_lainnya: false,
+                                urutan: index + 1,
+                                id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                            }));
+
+                            await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, {transaction});
+                        }
+                    }
+                }
+            } else {
+
+                await db.Pertanyaan.destroy({
+                    where: { pertanyaan_id_pertanyaan: id_pertanyaan },
+                    transaction
+                });
+            }
+        }
+
+        await transaction.commit();
+
+        const updatedPertanyaan = await db.Pertanyaan.findOne({
+            where: { id_pertanyaan },
+            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+            include: [
+                {
+                    model: db.Opsi_jawaban,
+                    as: 'OpsiJawabans',
+                    attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
+                },
+                {
+                    model: db.Pertanyaan,
+                    as: 'ChildPertanyaans',
+                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                    include: [
+                        {
+                            model: db.Opsi_jawaban,
+                            as: 'OpsiJawabans',
+                            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
+                        }
+                    ]
+                }
+            ]
+        });
+
+        return res.status(200).json({
+            success: true,
+            status: 200,
+            message: 'Pertanyaan berhasil diperbarui',
+            data: updatedPertanyaan
+        });
+
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+};
+
+
+// hapus aspek penilaian
+const hapusAspekPenilaian = async (req,res) => {
+    let transaction
+    try {
+        transaction = await sequelize.transaction()
+        const {id_aspek_penilaian} = req.params
+        const findAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian)
+        if (!findAspek) {
+            throw new ValidationError('Data aspek penilaian tidak ditemukan')
+        }
+
+        await db.Aspek_penilaian.destroy({where:{id_aspek_penilaian}})
+        return res.status(200).json({success:true, status:200, message: 'Data aspek penilaian berhasil dihapus'})
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+// hapus indikator
+const hapusIndikator = async (req,res) => {
+    let transaction 
+    try {
+        transaction = await sequelize.transaction()
+        const {id_indikator} = req.params
+        const findIndikator = await db.Indikator.findByPk(id_indikator)
+        if (!findIndikator) {
+            throw new ValidationError('Data indikator tidak ditemukan')
+        }
+
+        await db.Indikator.destroy({where:{id_indikator}})
+        return res.status(200).json({success:true, status:200, message: 'Data indikator berhasil dihapus'})
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+// hapus bukti dukung
+const hapusBuktiDukung = async (req,res) => {
+    let transaction 
+    try {
+        transaction = await sequelize.transaction()
+        const {id_bukti_dukung} = req.params
+        const findBukti = await db.Bukti_dukung.findByPk(id_bukti_dukung)
+        if (!findBukti) {
+            throw new ValidationError('Data bukti dukung tidak ditemukan')
+        }
+
+        await db.Bukti_dukung.destroy({where:{id_bukti_dukung}})
+        return res.status(200).json({success:true, status: 200, message: 'Data bukti dukung berhasil dihapus'})
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+// hapus skala indikator
+const hapusSkalaIndikator = async (req,res) => {
+    let transaction 
+    try {
+        transaction = await sequelize.transaction()
+        const {id_skala} = req.params
+        const findSkala = await db.Skala_indikator.findByPk(id_skala)
+        if (!findSkala) {
+            throw new ValidationError('Data skala indikator tidak ditemukan')
+        }
+
+        await db.Skala_indikator.destroy({where:{id_skala}})
+        return res.status(200).json({success:true, status: 200, message: 'Data skala indikator berhasil dihapus'})
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+// hapus pertanyaan
+const hapusPertanyaan = async (req,res) => {
+    let transaction 
+    try {
+        transaction = await sequelize.transaction()
+        const {id_pertanyaan} = req.params
+        const findPertanyaan = await db.Pertanyaan.findByPk(id_pertanyaan)
+        if (!findPertanyaan) {
+            throw new ValidationError('Data pertanyaan tidak ditemukan')
+        }
+
+        await db.Pertanyaan.destroy({where:{id_pertanyaan}})
+        return res.status(200).json({success:true, status: 200, message: 'Data pertanyaan berhasil dihapus'})
+    } catch (error) {
+        console.error(error);
+        if (transaction) await transaction.rollback();
+        
+        switch(error.constructor) {
+            case ValidationError:
+                return res.status(400).json({
+                    success: false,
+                    status: 400,
+                    message: error.message
+                });
+                
+            case NotFoundError:
+                return res.status(404).json({
+                    success: false,
+                    status: 404,
+                    message: error.message
+                });
+                
+            default:
+                return res.status(500).json({
+                    success: false,
+                    status: 500,
+                    message: 'Kesalahan Server'
+                });
+        }
+    }
+}
+
+module.exports = {tambahAspek, tambahIndikator, tambahBuktiDukung, tambahSkalaIndikator, tipePertanyaan, tambahPertanyaan, allAspek, detailAspek, editAspekPenilaian, editIndikator, editBuktiDukung, editSkalaIndikator, editPertanyaan, hapusAspekPenilaian, hapusIndikator, hapusBuktiDukung, hapusSkalaIndikator, hapusPertanyaan}
