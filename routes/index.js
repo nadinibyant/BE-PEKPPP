@@ -9,6 +9,8 @@ const opdDashboard = require('./Opd/dashboard')
 const opd = require('./Opd/opd')
 const penilaianfo1Opd = require('./Opd/penilaianf01')
 const verifikasiF01 = require('./Admin/verifikasif01')
+const evaluator = require('./Evaluator/evaluator')
+const penilaianf02 = require('./Evaluator/penilaianf02')
 const server = {}
 
 server.user = user
@@ -22,5 +24,7 @@ server.opdDashboard = opdDashboard
 server.opd = opd
 server.penilaianfo1Opd = penilaianfo1Opd
 server.verifikasiF01 = verifikasiF01
+server.evaluator = evaluator
+server.penilaianf02 = penilaianf02
 
 module.exports = server

@@ -5,8 +5,8 @@ const { Op, where, Sequelize } = require('sequelize');
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
-//login opd
-const loginOpd = async(req,res) => {
+//login 
+const loginEvaluator = async(req,res) => {
     let transaction
     try {
         transaction = await sequelize.transaction();
@@ -20,8 +20,8 @@ const loginOpd = async(req,res) => {
             where:{email},
             include: [
                 {
-                    model: db.Opd,
-                    as: 'opd'
+                    model: db.Evaluator,
+                    as: 'evaluator'
                 }
             ]
         })
@@ -30,8 +30,8 @@ const loginOpd = async(req,res) => {
             throw new ValidationError('Email tidak ditemukan')
         }
 
-        if (!findUser.opd) {
-            throw new ValidationError('Opd tidak ditemukan')
+        if (!findUser.evaluator) {
+            throw new ValidationError('Evaluator tidak ditemukan')
         }
 
         const isPassValid = await bcrypt.compare(password, findUser.password)
@@ -60,7 +60,7 @@ const loginOpd = async(req,res) => {
                 user: {
                     id_user: findUser.id_user,
                     email: findUser.email,
-                    nama: findUser.opd.nama_opd
+                    nama: findUser.evaluator.nama
                 }
             }
         })
@@ -91,17 +91,17 @@ const loginOpd = async(req,res) => {
     }
 }
 
-//logout opd
-const logoutOpd = async (req,res) => {
+//logout 
+const logoutEvaluator = async (req,res) => {
     try {
         const id_user = req.user.id_user
         const authHeader = req.get('Authorization')
         const authToken = authHeader.split(' ')[1]
-        const isOpd = await db.Opd.findOne({
-            where: { id_opd: id_user }
+        const isEvaluator = await db.Evaluator.findOne({
+            where: { id_evaluator: id_user }
         })
         
-        if (!isOpd) {
+        if (!isEvaluator) {
             return res.status(403).json({
                 success: false, 
                 status: 403, 
@@ -150,4 +150,4 @@ const logoutOpd = async (req,res) => {
     }
 }
 
-module.exports = {loginOpd, logoutOpd}
+module.exports = {loginEvaluator, logoutEvaluator}

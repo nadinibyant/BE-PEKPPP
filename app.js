@@ -24,6 +24,8 @@ app.use('/', server.opdDashboard)
 app.use('/', server.opd)
 app.use('/', server.penilaianfo1Opd)
 app.use('/', server.verifikasiF01)
+app.use('/', server.evaluator)
+app.use('/', server.penilaianf02)
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
