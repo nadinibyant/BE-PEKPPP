@@ -18,6 +18,12 @@ app.use('/', server.admin)
 app.use('/', server.adminKelolaOpd)
 app.use('/', server.adminKelolaEvaluator)
 app.use('/', server.adminAspekPenilaian)
+app.use('/', server.adminPeriodePenilaian)
+app.use('/', server.adminDashboard)
+app.use('/', server.opdDashboard)
+app.use('/', server.opd)
+app.use('/', server.penilaianfo1Opd)
+app.use('/', server.verifikasiF01)
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

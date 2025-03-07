@@ -12,6 +12,8 @@ const tambahEvaluator = async (req, res) => {
             throw new ValidationError('Silahkan pilih sumber tim penilai/evaluator');
         }
 
+        
+
         if (sumberEvaluator === 'dari_opd') {
             if (!password) {
                 throw new ValidationError('Password anda belum terisi')
@@ -31,6 +33,21 @@ const tambahEvaluator = async (req, res) => {
                 }],
                 attributes: ['nama_opd']
             });
+
+            if (!findOpd) {
+                throw new ValidationError('Data OPD tidak ditemukan')
+            }
+
+            const existingUser = await db.User.findOne({
+                where: { 
+                    email: findOpd.user.email,
+                    id_user: { [db.Sequelize.Op.ne]: findOpd.user.id_user }
+                }
+            });
+            
+            if (existingUser) {
+                throw new ValidationError('Email OPD ini sudah terdaftar sebagai pengguna lain');
+            }
 
             if (!findOpd) {
                 throw new NotFoundError('Data OPD Tidak Ditemukan');
@@ -55,6 +72,14 @@ const tambahEvaluator = async (req, res) => {
 
             if (password.length < 8) {
                 throw new ValidationError('Password minimal 8 karakter')
+            }
+
+            const existingUser = await db.User.findOne({
+                where: { email }
+            });
+            
+            if (existingUser) {
+                throw new ValidationError('Email sudah digunakan, silahkan gunakan email lain');
             }
 
             const hashPass = await bcrypt.hash(password, 10);

@@ -3,6 +3,12 @@ const admin = require('./Admin/admin')
 const adminKelolaOpd = require('./Admin/kelolaOpd')
 const adminKelolaEvaluator = require('./Admin/kelolaEvaluator')
 const adminAspekPenilaian = require('./Admin/aspekPenilaian')
+const adminPeriodePenilaian = require('./Admin/periodePenilaian')
+const adminDashboard = require('./Admin/dashboard')
+const opdDashboard = require('./Opd/dashboard')
+const opd = require('./Opd/opd')
+const penilaianfo1Opd = require('./Opd/penilaianf01')
+const verifikasiF01 = require('./Admin/verifikasif01')
 const server = {}
 
 server.user = user
@@ -10,5 +16,11 @@ server.admin = admin
 server.adminKelolaOpd = adminKelolaOpd
 server.adminKelolaEvaluator = adminKelolaEvaluator
 server.adminAspekPenilaian = adminAspekPenilaian
+server.adminPeriodePenilaian = adminPeriodePenilaian
+server.adminDashboard = adminDashboard
+server.opdDashboard = opdDashboard
+server.opd = opd
+server.penilaianfo1Opd = penilaianfo1Opd
+server.verifikasiF01 = verifikasiF01
 
 module.exports = server

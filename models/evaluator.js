@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       });
 
       Evaluator.hasMany(models.Izin_hasil_penilaian, {
-        foreignKey: 'id_evalutor',
+        foreignKey: 'id_evaluator',
         as: 'izin_hasil_penilaians'
       });
     }
