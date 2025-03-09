@@ -13,7 +13,6 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', server.user)
 app.use('/', server.admin)
 app.use('/', server.adminKelolaOpd)
 app.use('/', server.adminKelolaEvaluator)
@@ -26,6 +25,11 @@ app.use('/', server.penilaianfo1Opd)
 app.use('/', server.verifikasiF01)
 app.use('/', server.evaluator)
 app.use('/', server.penilaianf02)
+app.use('/', server.hasilPenilaian)
+app.use('/', server.hasilPenilaianEval)
+app.use('/', server.hasilPenilaianOpd)
+app.use('/', server.izinHasilPenilaian)
+app.use('/', server.profile)
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

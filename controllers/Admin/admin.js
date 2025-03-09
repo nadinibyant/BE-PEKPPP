@@ -110,7 +110,7 @@ const loginAdmin = async (req,res) => {
         }
 
         const token = jwt.sign(
-            {id_user: findUser.id_user},
+            {id_admin: findUser.id_user, email: findUser.email, nama:findUser.admin.nama},
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: '1w'}
         )
@@ -128,7 +128,7 @@ const loginAdmin = async (req,res) => {
             data: {
                 token,
                 user: {
-                    id_user: findUser.id_user,
+                    id_admin: findUser.id_user,
                     email: findUser.email,
                     nama: findUser.admin.nama
                 }

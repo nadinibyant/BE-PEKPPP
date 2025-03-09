@@ -29,6 +29,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_pengisian_f02',
         as: 'nilai_akhir'
       });
+
+      Pengisian_f02.hasMany(models.Izin_hasil_penilaian, {
+        foreignKey: 'id_pengisian_f02',
+        as: 'izin_hasil_penilaians'
+      });
     }
   }
   Pengisian_f02.init({

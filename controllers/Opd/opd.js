@@ -58,7 +58,7 @@ const loginOpd = async(req,res) => {
             data: {
                 token,
                 user: {
-                    id_user: findUser.id_user,
+                    id_opd: findUser.id_user,
                     email: findUser.email,
                     nama: findUser.opd.nama_opd
                 }

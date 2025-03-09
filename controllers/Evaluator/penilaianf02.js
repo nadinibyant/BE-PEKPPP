@@ -540,12 +540,101 @@ const submitF02 = async (req, res) => {
         }
         
         console.log('Konsolidasi sub aspek:', JSON.stringify(konsolidasiSubAspek));
-   
-        let totalNilaiAkhir = 0;
+     
+        console.log('Menyimpan nilai untuk setiap aspek...');
         
         const indukAspek = allAspek.filter(aspek => !aspek.parent_id_aspek_penilaian);
         console.log(`Jumlah induk aspek: ${indukAspek.length}`);
 
+        for (const aspek of indukAspek) {
+            const id_aspek_penilaian = aspek.id_aspek_penilaian;
+            let total_nilai_indikator = 0;
+            
+            if (konsolidasiSubAspek[id_aspek_penilaian]) {
+                total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
+            } else if (aspekValues[id_aspek_penilaian]) {
+                total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+            } else {
+                console.log(`Aspek ${id_aspek_penilaian} tidak memiliki nilai, dilewati`);
+                continue;
+            }
+            
+            const existingNilaiAspek = await db.Nilai_aspek.findOne({
+                where: {
+                    id_pengisian_f02: pengisianF02.id_pengisian_f02,
+                    id_aspek_penilaian: id_aspek_penilaian
+                }
+            });
+            
+            if (existingNilaiAspek) {
+                await db.Nilai_aspek.update({
+                    total_nilai_indikator: total_nilai_indikator,
+                    updatedAt: new Date()
+                }, {
+                    where: {
+                        id_nilai_aspek: existingNilaiAspek.id_nilai_aspek
+                    },
+                    transaction
+                });
+                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil diupdate: ${total_nilai_indikator}`);
+            } else {
+                await db.Nilai_aspek.create({
+                    id_pengisian_f02: pengisianF02.id_pengisian_f02,
+                    id_aspek_penilaian: id_aspek_penilaian,
+                    total_nilai_indikator: total_nilai_indikator,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }, { transaction });
+                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
+            }
+        }
+
+        for (const aspek of allAspek) {
+            if (!aspek.parent_id_aspek_penilaian) continue;
+            
+            const id_aspek_penilaian = aspek.id_aspek_penilaian;
+   
+            if (!aspekValues[id_aspek_penilaian]) {
+                console.log(`Sub aspek ${id_aspek_penilaian} tidak memiliki nilai, dilewati`);
+                continue;
+            }
+            
+            const total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+            
+            const existingNilaiAspek = await db.Nilai_aspek.findOne({
+                where: {
+                    id_pengisian_f02: pengisianF02.id_pengisian_f02,
+                    id_aspek_penilaian: id_aspek_penilaian
+                }
+            });
+            
+            if (existingNilaiAspek) {
+                await db.Nilai_aspek.update({
+                    total_nilai_indikator: total_nilai_indikator,
+                    updatedAt: new Date()
+                }, {
+                    where: {
+                        id_nilai_aspek: existingNilaiAspek.id_nilai_aspek
+                    },
+                    transaction
+                });
+                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil diupdate: ${total_nilai_indikator}`);
+            } else {
+                // Buat nilai aspek baru
+                await db.Nilai_aspek.create({
+                    id_pengisian_f02: pengisianF02.id_pengisian_f02,
+                    id_aspek_penilaian: id_aspek_penilaian,
+                    total_nilai_indikator: total_nilai_indikator,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }, { transaction });
+                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
+            }
+        }
+   
+        let totalNilaiAkhir = 0;
+        
+        // Perhitungan nilai akhir dari induk aspek
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
             let total_nilai_indikator = 0;
@@ -761,6 +850,6 @@ const submitF02 = async (req, res) => {
             });
         }
     }
-}
+};
 
 module.exports = {listOpdf02, getQuestF02, findf01Opd, submitF02}

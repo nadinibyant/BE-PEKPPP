@@ -19,6 +19,16 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_periode_penilaian',
         as: 'periode_penilaian'
       });
+
+      Izin_hasil_penilaian.belongsTo(models.Pengisian_f02, {
+        foreignKey: 'id_pengisian_f02',
+        as: 'pengisian_f02'
+      });
+
+      Izin_hasil_penilaian.belongsTo(models.Nilai_akhir_kumulatif, {
+        foreignKey: 'id_nilai_kumulatif',
+        as: 'nilai_akhir_kumulatif'
+      });
     }
   }
   Izin_hasil_penilaian.init({
@@ -42,6 +52,22 @@ module.exports = (sequelize, DataTypes) => {
       references: {
         model: 'Evaluators',
         key: 'id_evaluator'
+      }
+    },
+    id_pengisian_f02: {
+      type: DataTypes.CHAR(36),
+      allowNull: true, 
+      references: {
+        model: 'Pengisian_f02s', 
+        key: 'id_pengisian_f02'
+      }
+    },
+    id_nilai_kumulatif: {
+      type: DataTypes.CHAR(36),
+      allowNull: true, 
+      references: {
+        model: 'Nilai_akhir_kumulatifs', 
+        key: 'id_nilai_kumulatif'
       }
     },
     id_periode_penilaian: {

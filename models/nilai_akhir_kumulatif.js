@@ -14,6 +14,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_periode_penilaian',
         as: 'periode_penilaian'
       });
+
+      Nilai_akhir_kumulatif.hasMany(models.Izin_hasil_penilaian, {
+        foreignKey: 'id_nilai_kumulatif',
+        as: 'izin_hasil_penilaians'
+      });
     }
   }
   Nilai_akhir_kumulatif.init({
@@ -30,6 +35,10 @@ module.exports = (sequelize, DataTypes) => {
     kategori: {
       type: DataTypes.STRING(3),
       allowNull: false
+    },
+    feedback:{
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     id_opd: {
       type: DataTypes.CHAR(36),

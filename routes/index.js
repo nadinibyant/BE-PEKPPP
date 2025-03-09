@@ -1,4 +1,3 @@
-const user = require('./user')
 const admin = require('./Admin/admin')
 const adminKelolaOpd = require('./Admin/kelolaOpd')
 const adminKelolaEvaluator = require('./Admin/kelolaEvaluator')
@@ -11,9 +10,13 @@ const penilaianfo1Opd = require('./Opd/penilaianf01')
 const verifikasiF01 = require('./Admin/verifikasif01')
 const evaluator = require('./Evaluator/evaluator')
 const penilaianf02 = require('./Evaluator/penilaianf02')
+const hasilPenilaian = require('./Admin/hasilPenilaian')
+const hasilPenilaianEval = require('./Evaluator/hasilPenilaian')
+const hasilPenilaianOpd = require('./Opd/hasilPenilaian')
+const izinHasilPenilaian = require('./Admin/izinHasilPenilaian')
+const profile = require('./profile')
 const server = {}
 
-server.user = user
 server.admin = admin
 server.adminKelolaOpd = adminKelolaOpd
 server.adminKelolaEvaluator = adminKelolaEvaluator
@@ -26,5 +29,10 @@ server.penilaianfo1Opd = penilaianfo1Opd
 server.verifikasiF01 = verifikasiF01
 server.evaluator = evaluator
 server.penilaianf02 = penilaianf02
+server.hasilPenilaian = hasilPenilaian
+server.hasilPenilaianEval = hasilPenilaianEval
+server.hasilPenilaianOpd = hasilPenilaianOpd
+server.izinHasilPenilaian = izinHasilPenilaian
+server.profile = profile
 
 module.exports = server

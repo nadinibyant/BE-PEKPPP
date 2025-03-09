@@ -6,50 +6,49 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
 //login 
-const loginEvaluator = async(req,res) => {
-    let transaction
+const loginEvaluator = async(req, res) => {
+    let transaction;
     try {
         transaction = await sequelize.transaction();
 
-        const {email, password} = req.body
+        const {email, password} = req.body;
         if (!email || !password) {
-            throw new ValidationError('Silahkan lengkapi data akun anda')
+            throw new ValidationError('Silahkan lengkapi data akun anda');
         }
 
         const findUser = await db.User.findOne({
-            where:{email},
+            where: { email },
             include: [
                 {
                     model: db.Evaluator,
-                    as: 'evaluator'
+                    as: 'evaluator',
+                    required: true 
                 }
             ]
-        })
+        });
 
         if (!findUser) {
-            throw new ValidationError('Email tidak ditemukan')
+            throw new ValidationError('Akun evaluator dengan email ini tidak ditemukan');
         }
 
-        if (!findUser.evaluator) {
-            throw new ValidationError('Evaluator tidak ditemukan')
-        }
-
-        const isPassValid = await bcrypt.compare(password, findUser.password)
+        const isPassValid = await bcrypt.compare(password, findUser.password);
         if (!isPassValid) {
-            throw new ValidationError('Password anda salah')
+            throw new ValidationError('Password anda salah');
         }
 
         const token = jwt.sign(
             {id_user: findUser.id_user},
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: '1w'}
-        )
+        );
         
         await db.Token_user.create({
             token,
             id_user: findUser.id_user,
             expired_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        })
+        }, { transaction });
+
+        await transaction.commit();
 
         return res.status(200).json({
             success: true, 
@@ -58,12 +57,12 @@ const loginEvaluator = async(req,res) => {
             data: {
                 token,
                 user: {
-                    id_user: findUser.id_user,
+                    id_evaluator: findUser.id_user,
                     email: findUser.email,
                     nama: findUser.evaluator.nama
                 }
             }
-        })
+        });
         
     } catch (error) {
         console.error(error);
@@ -89,7 +88,7 @@ const loginEvaluator = async(req,res) => {
             });
         }
     }
-}
+};
 
 //logout 
 const logoutEvaluator = async (req,res) => {
