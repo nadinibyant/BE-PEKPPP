@@ -7,22 +7,30 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Pengisian_f01.belongsTo(models.Opd, {
         foreignKey: 'id_opd',
-        as: 'opd'
+        as: 'opd',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
       
       Pengisian_f01.belongsTo(models.Periode_penilaian, {
         foreignKey: 'id_periode_penilaian',
-        as: 'periode_penilaian'
+        as: 'periode_penilaian',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f01.hasMany(models.Jawaban, {
         foreignKey: 'id_pengisian_f01',
-        as: 'jawabans'
+        as: 'jawabans',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f01.hasMany(models.Bukti_dukung_upload, {
         foreignKey: 'id_pengisian_f01',
-        as: 'bukti_dukung_uploads'
+        as: 'bukti_dukung_uploads',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
     }
   }

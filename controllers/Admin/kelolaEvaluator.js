@@ -143,51 +143,80 @@ const totalEvalutor = async (req,res) => {
 }
 
 //all evalutor
-const allEvaluator = async (req,res) => {
+const allEvaluator = async (req, res) => {
     try {
         const findEvaluator = await db.Evaluator.findAll({
-            attributes:['id_evaluator', 'nama'],
+            attributes: ['id_evaluator', 'nama'],
             include: [
                 {
-                    model:db.User,
+                    model: db.User,
                     as: 'user',
                     attributes: ['email']
                 }
             ]
-        })
+        });
 
-        if (findEvaluator.length <0) {
-            throw new ValidationError('Data Evaluator belum tersedia')
+        if (findEvaluator.length <= 0) {
+            throw new ValidationError('Data Evaluator belum tersedia');
         }
 
-        return res.status(200).json({success:true, status:200, message: 'Data evaluator tersedia', data: findEvaluator})
+        const totalEvaluasi = await db.sequelize.query(`
+            SELECT 
+                e.id_evaluator, 
+                COUNT(pf02.id_pengisian_f02) as total_evaluasi
+            FROM 
+                Evaluators e
+            LEFT JOIN 
+                Evaluator_periode_penilaians epp ON e.id_evaluator = epp.id_evaluator
+            LEFT JOIN 
+                Pengisian_f02s pf02 ON epp.id_evaluator_periode_penilaian = pf02.id_evaluator_periode_penilaian
+            GROUP BY 
+                e.id_evaluator
+        `, { type: db.sequelize.QueryTypes.SELECT });
+
+        const result = findEvaluator.map(evaluator => {
+            const evaluatorData = evaluator.toJSON();
+            const evaluasiData = totalEvaluasi.find(item => item.id_evaluator === evaluator.id_evaluator);
+            
+            return {
+                ...evaluatorData,
+                total_evaluasi: evaluasiData ? parseInt(evaluasiData.total_evaluasi) : 0
+            };
+        });
+
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data evaluator tersedia', 
+            data: result
+        });
 
     } catch (error) {
-        console.error(error)
+        console.error(error);
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
                     success: false,
-                    status:400,
+                    status: 400,
                     message: error.message
                 });
                 
             case NotFoundError:
                 return res.status(404).json({
                     success: false,
-                    status:404,
+                    status: 404,
                     message: error.message
                 });
                 
             default:
                 return res.status(500).json({
                     success: false,
-                    status:500,
+                    status: 500,
                     message: 'Kesalahan Server'
                 });
         }
     }
-}
+};
 
 //edit evaluator
 const editEvaluator = async (req, res) => {
@@ -296,35 +325,80 @@ const hapusEvaluator = async (req,res) => {
         if (!findEvaluator) {
             throw new NotFoundError('Data evaluator tidak ditemukan')
         }
-        await db.Evaluator.destroy({where:{id_evaluator}, transaction})
-        await db.User.destroy({where:{id_user:id_evaluator}, transaction})
 
-        await transaction.commit()
-        res.status(200).json({success:true, status:200, message: 'Data evaluator berhasil dihapus'})
+        const relatedPeriods = await db.Evaluator_periode_penilaian.findAll({
+            where: {id_evaluator},
+            transaction
+        });
+
+        for (const period of relatedPeriods) {
+            const relatedF02s = await db.Pengisian_f02.findAll({
+                where: { 
+                    id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
+                },
+                transaction
+            });
+
+            for (const f02 of relatedF02s) {
+                await db.Izin_hasil_penilaian.destroy({
+                    where: { id_pengisian_f02: f02.id_pengisian_f02 },
+                    transaction
+                });
+            }
+
+            await db.Pengisian_f02.destroy({
+                where: { 
+                    id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
+                },
+                transaction
+            });
+        }
+
+        await db.Evaluator_periode_penilaian.destroy({
+            where: {id_evaluator},
+            transaction
+        });
+ 
+        await db.Evaluator.destroy({
+            where: {id_evaluator}, 
+            transaction
+        });
+        
+        await db.User.destroy({
+            where: {id_user: id_evaluator}, 
+            transaction
+        });
+
+        await transaction.commit();
+        res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data evaluator berhasil dihapus'
+        });
         
     } catch (error) {
-        await transaction.rollback()
-        console.error(error)
+        await transaction.rollback();
+        console.error(error);
 
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
                     success: false,
-                    status:400,
+                    status: 400,
                     message: error.message
                 });
                 
             case NotFoundError:
                 return res.status(404).json({
                     success: false,
-                    status:404,
+                    status: 404,
                     message: error.message
                 });
                 
             default:
                 return res.status(500).json({
                     success: false,
-                    status:500,
+                    status: 500,
                     message: 'Kesalahan Server'
                 });
         }

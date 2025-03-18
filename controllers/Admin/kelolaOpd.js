@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt')
 const db = require('../../models')
 const sequelize = require('../../config/database')
+const { where } = require('sequelize')
 
 //tambah opd
 const tambahOpd = async (req,res) => {
@@ -19,12 +20,6 @@ const tambahOpd = async (req,res) => {
         }
 
         const hashPass = await bcrypt.hash(password, 10)
-
-        const findOpd = await db.Opd.findOne({where:{nama_opd:nama}})
-        if (findOpd) {
-            await transaction.rollback()
-            return res.status(400).json({success: false, status:400, message: 'Nama opd telah digunakan'})
-        }
 
         const findEmail = await db.Opd.findOne({
             include: [

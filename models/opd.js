@@ -9,32 +9,44 @@ module.exports = (sequelize, DataTypes) => {
       Opd.belongsTo(models.User, {
         foreignKey: 'id_opd',
         targetKey: 'id_user',
-        as: 'user'
+        as: 'user',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Opd.hasMany(models.Message, {
         foreignKey: 'id_opd',
-        as: 'messages'
+        as: 'messages',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Opd.hasOne(models.Pengisian_f01, {
         foreignKey: 'id_opd',
-        as: 'pengisian_f01'
+        as: 'pengisian_f01',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Opd.hasMany(models.Pengisian_f02, {
         foreignKey: 'id_opd',
-        as: 'pengisian_f02s'
+        as: 'pengisian_f02s',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Opd.hasMany(models.Nilai_akhir_kumulatif, {
         foreignKey: 'id_opd',
-        as: 'nilai_kumulatifs'
+        as: 'nilai_kumulatifs',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Opd.hasMany(models.Izin_hasil_penilaian, {
         foreignKey: 'id_opd',
-        as: 'izin_hasil_penilaians'
+        as: 'izin_hasil_penilaians',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
     }
   }

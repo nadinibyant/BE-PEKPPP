@@ -7,32 +7,44 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Pengisian_f02.belongsTo(models.Opd, {
         foreignKey: 'id_opd',
-        as: 'opd'
+        as: 'opd',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f02.belongsTo(models.Evaluator_periode_penilaian, {
         foreignKey: 'id_evaluator_periode_penilaian',
-        as: 'evaluator_periode_penilaian'
+        as: 'evaluator_periode_penilaian',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f02.hasMany(models.nilai_indikator, {
         foreignKey: 'id_pengisian_f02',
-        as: 'nilai_indikators'
+        as: 'nilai_indikators',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f02.hasMany(models.Nilai_aspek, {
         foreignKey: 'id_pengisian_f02',
-        as: 'nilai_aspeks'
+        as: 'nilai_aspeks',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f02.hasOne(models.Nilai_akhir, {
         foreignKey: 'id_pengisian_f02',
-        as: 'nilai_akhir'
+        as: 'nilai_akhir',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Pengisian_f02.hasMany(models.Izin_hasil_penilaian, {
         foreignKey: 'id_pengisian_f02',
-        as: 'izin_hasil_penilaians'
+        as: 'izin_hasil_penilaians',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
     }
   }

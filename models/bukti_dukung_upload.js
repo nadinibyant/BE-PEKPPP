@@ -8,17 +8,23 @@ module.exports = (sequelize, DataTypes) => {
       // Definisi relasi
       Bukti_dukung_upload.belongsTo(models.Indikator, {
         foreignKey: 'id_indikator',
-        as: 'indikator'
+        as: 'indikator',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Bukti_dukung_upload.belongsTo(models.Bukti_dukung, {
         foreignKey: 'id_bukti_dukung',
-        as: 'bukti_dukung'
+        as: 'bukti_dukung',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
 
       Bukti_dukung_upload.belongsTo(models.Pengisian_f01, {
         foreignKey: 'id_pengisian_f01',
-        as: 'pengisian_f01'
+        as: 'pengisian_f01',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       });
     }
   }
