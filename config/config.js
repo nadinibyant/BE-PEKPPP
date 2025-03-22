@@ -9,10 +9,10 @@ module.exports = {
     dialect: "mysql",
     port: process.env.DB_PORT || 3306,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+      max: 10,           
+      min: 0,             
+      acquire: 60000,   
+      idle: 10000   
     }
   },
   test: {

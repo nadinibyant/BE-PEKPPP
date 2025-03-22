@@ -3,6 +3,7 @@ const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where } = require('sequelize');
 
+
 // tambah aspek
 const tambahAspek = async (req,res) => {
     let transaction;
@@ -14,7 +15,10 @@ const tambahAspek = async (req,res) => {
             throw new ValidationError('Silahkan lengkapi data aspek')
         }
 
-        const findAspek = await db.Aspek_penilaian.findOne({where:{nama_aspek}, transaction})
+        const findAspek = await db.Aspek_penilaian.findOne({
+            where: sequelize.literal(`LOWER(nama_aspek) = LOWER('${nama_aspek.replace(/'/g, "''")}')`),
+            transaction
+        })
         if (findAspek) {
             throw new ValidationError('Nama aspek penilaian sudah digunakan')
         }
@@ -343,53 +347,79 @@ const tambahBuktiDukung = async (req,res) => {
 }
 
 // tambah skala indikator by id indikator
-const tambahSkalaIndikator = async (req,res) => {
+const tambahSkalaIndikator = async (req, res) => {
     let transaction
     try {
         transaction = await db.sequelize.transaction();
-        const {skala_0, skala_1, skala_2, skala_3, skala_4, skala_5, id_indikator} = req.body
+        const { id_indikator, ...skalaFields } = req.body;
 
-        const findIndikator = await db.Indikator.findByPk(id_indikator)
+        const findIndikator = await db.Indikator.findByPk(id_indikator);
         if (!findIndikator) {
-            throw new ValidationError('Data indikator tidak ditemukan')
+            throw new ValidationError('Data indikator tidak ditemukan');
         }
 
-        const skalaValues = [skala_0, skala_1, skala_2, skala_3, skala_4, skala_5];
-        if (skalaValues.some(skala => !skala)) {
-            throw new ValidationError('Lengkapi seluruh data skala indikator');
+        const existingScales = await db.Skala_indikator.findAll({
+            where: { id_indikator }
+        });
+
+        const existingScaleValues = existingScales.map(scale => scale.nilai_skala);
+
+        if (Object.keys(skalaFields).length === 0) {
+            throw new ValidationError('Tidak ada data skala yang dikirimkan');
         }
 
-        const skalaData = skalaValues.map((deskripsi_skala, index) => ({
-            id_indikator,
-            nilai_skala: index,
-            deskripsi_skala
-        }))
+        const skalaData = [];
+        
+        Object.keys(skalaFields).forEach(key => {
+            if (key.startsWith('skala_')) {
+                const nilai = parseInt(key.split('_')[1]);
+                if (!existingScaleValues.includes(nilai) && skalaFields[key]) {
+                    skalaData.push({
+                        id_indikator,
+                        nilai_skala: nilai,
+                        deskripsi_skala: skalaFields[key]
+                    });
+                }
+            }
+        });
 
-        await db.Skala_indikator.bulkCreate(skalaData, {transaction})
-        await transaction.commit()
-        return res.status(200).json({success:true, status:200, message: 'Data skala indikator berhasil ditambahkan'})
+        if (skalaData.length === 0) {
+            throw new ValidationError('Tidak ada data skala baru yang valid untuk ditambahkan');
+        }
+
+        const createdScales = await db.Skala_indikator.bulkCreate(skalaData, { transaction });
+        
+        await transaction.commit();
+        
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data skala indikator berhasil ditambahkan',
+            data: createdScales
+        });
     } catch (error) {
         if (transaction) await transaction.rollback();
-        console.error(error)
+        console.error(error);
+        
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
                     success: false,
-                    status:400,
+                    status: 400,
                     message: error.message
                 });
                 
             case NotFoundError:
                 return res.status(404).json({
                     success: false,
-                    status:404,
+                    status: 404,
                     message: error.message
                 });
                 
             default:
                 return res.status(500).json({
                     success: false,
-                    status:500,
+                    status: 500,
                     message: 'Kesalahan Server'
                 });
         }
@@ -398,9 +428,7 @@ const tambahSkalaIndikator = async (req,res) => {
 
 // all tipe pertanyaan
 const tipePertanyaan = async (req,res) => {
-    let transaction
     try {
-        transaction = await sequelize.transaction()
         const getAll = await db.Tipe_pertanyaan.findAll({
             attributes: ['id_tipe_pertanyaan', 'nama_jenis', 'kode_jenis'],
             include: [
@@ -415,7 +443,6 @@ const tipePertanyaan = async (req,res) => {
         }
         return res.status(200).json({success:true, status:200, message: 'Data tipe pertanyaan tersedia', data: getAll})
     } catch (error) {
-        if (transaction) await transaction.rollback();
         console.error(error)
         switch(error.constructor) {
             case ValidationError:
@@ -443,18 +470,214 @@ const tipePertanyaan = async (req,res) => {
 }
 
 // tambah pertanyaan by indikator
-const tambahPertanyaan = async (req,res) => {
-    let transaction
-    try {
-        transaction = await sequelize.transaction()
+// const tambahPertanyaan = async (req, res) => {
+//     try {
+//         const {teks_pertanyaan, id_tipe_pertanyaan, id_indikator, opsi_jawaban, trigger_jawaban, keterangan_trigger} = req.body
 
-        const {teks_pertanyaan, id_tipe_pertanyaan, id_indikator, opsi_jawaban, trigger_jawaban, keterangan_trigger} = req.body
+//         if (!teks_pertanyaan || !id_tipe_pertanyaan || !id_indikator) {
+//             throw new ValidationError('Pertanyaan, tipe pertanyaan, dan indikator')
+//         }
+
+//         const findIndikator = await db.Indikator.findByPk(id_indikator)
+//         if (!findIndikator) {
+//             throw new ValidationError('Data indikator tidak ditemukan')
+//         }
+
+//         const tipePertanyaan = await db.Tipe_pertanyaan.findByPk(id_tipe_pertanyaan, {
+//             include: [
+//                 {
+//                     model: db.Tipe_opsi_jawaban
+//                 }
+//             ]
+//         })
+
+//         if (!tipePertanyaan) {
+//             throw new ValidationError('Tipe pertanyaan tidak ditemukan')
+//         }
+
+//         const lastUrutan = await db.Pertanyaan.findOne({
+//             where: { 
+//                 indikator_id_indikator: id_indikator,
+//                 pertanyaan_id_pertanyaan: null
+//             },
+//             order: [['urutan', 'DESC']],
+//         });
+
+//         const nextUrutan = lastUrutan ? lastUrutan.urutan + 1 : 1
+
+//         const addPertanyaanUtama = await db.Pertanyaan.create({
+//             teks_pertanyaan, 
+//             tipe_pertanyaan_id_tipe_pertanyaan: id_tipe_pertanyaan,
+//             indikator_id_indikator: id_indikator,
+//             urutan: nextUrutan
+//         })
+
+//         const { nama_tipe, allow_other, has_trigger } = tipePertanyaan.Tipe_opsi_jawaban;
+
+//         if (nama_tipe !== 'text') {
+//             if (!opsi_jawaban || opsi_jawaban.length === 0) {
+//                 throw new ValidationError('Opsi jawaban harus diisi')
+//             }
+
+//             const opsiJawabanData = opsi_jawaban.map((opsi, index) => ({
+//                 teks_opsi: opsi.teks_opsi,
+//                 memiliki_isian_lainnya: false,
+//                 urutan: index + 1,
+//                 id_pertanyaan: addPertanyaanUtama.id_pertanyaan
+//             }))
+
+//             if (allow_other) {
+//                 opsiJawabanData.push({
+//                     teks_opsi: "Lainnya",
+//                     memiliki_isian_lainnya: true,
+//                     urutan: opsiJawabanData.length + 1,
+//                     id_pertanyaan: addPertanyaanUtama.id_pertanyaan
+//                 })
+//             }
+
+//             await db.Opsi_jawaban.bulkCreate(opsiJawabanData)
+
+//             if (has_trigger && trigger_jawaban) {
+//                 await processSubPertanyaan(
+//                     trigger_jawaban, 
+//                     id_indikator, 
+//                     addPertanyaanUtama.id_pertanyaan, 
+//                     keterangan_trigger
+//                 )
+//             }
+//         }
+
+//         const createdPertanyaan = await db.Pertanyaan.findOne({
+//             where: { id_pertanyaan: addPertanyaanUtama.id_pertanyaan },
+//             attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+//             include: getRecursiveInclude()
+//         });
+
+//         return res.status(200).json({
+//             success: true,
+//             status: 200,
+//             message: 'Pertanyaan berhasil ditambahkan',
+//             data: createdPertanyaan
+//         });
+
+//     } catch (error) {
+//         console.error(error)
+//         switch(error.constructor) {
+//             case ValidationError:
+//                 return res.status(400).json({
+//                     success: false,
+//                     status:400,
+//                     message: error.message
+//                 });
+                
+//             case NotFoundError:
+//                 return res.status(404).json({
+//                     success: false,
+//                     status:404,
+//                     message: error.message
+//                 });
+                
+//             default:
+//                 return res.status(500).json({
+//                     success: false,
+//                     status:500,
+//                     message: 'Kesalahan Server'
+//                 });
+//         }
+//     }
+// }
+
+
+const processSubPertanyaan = async (
+    trigger_jawaban, 
+    id_indikator, 
+    parent_id_pertanyaan, 
+    keterangan_trigger
+) => {
+    const { trigger_value, sub_pertanyaan } = trigger_jawaban;
+
+    if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
+        for (let i = 0; i < sub_pertanyaan.length; i++) {
+            const subQuestion = sub_pertanyaan[i];
+            
+            const lastSubUrutan = await db.Pertanyaan.findOne({
+                where: { 
+                    indikator_id_indikator: id_indikator,
+                    pertanyaan_id_pertanyaan: parent_id_pertanyaan
+                },
+                order: [['urutan', 'DESC']]
+            });
+
+            const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
+
+            const newSubPertanyaan = await db.Pertanyaan.create({
+                teks_pertanyaan: subQuestion.teks_pertanyaan,
+                tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
+                indikator_id_indikator: id_indikator,
+                pertanyaan_id_pertanyaan: parent_id_pertanyaan, 
+                trigger_value: trigger_value,
+                urutan: nextSubUrutan,
+                keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
+            });
+
+            if (subQuestion.opsi_jawaban && subQuestion.opsi_jawaban.length > 0) {
+                const subTipePertanyaan = await db.Tipe_pertanyaan.findByPk(subQuestion.id_tipe_pertanyaan, {
+                    include: [{ model: db.Tipe_opsi_jawaban }]
+                });
+
+                if (subTipePertanyaan) {
+                    const { nama_tipe, allow_other, has_trigger } = subTipePertanyaan.Tipe_opsi_jawaban;
+
+                    const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi, index) => ({
+                        teks_opsi: opsi.teks_opsi,
+                        memiliki_isian_lainnya: false,
+                        urutan: index + 1,
+                        id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                    }));
+
+                    if (allow_other) {
+                        subOpsiJawaban.push({
+                            teks_opsi: "Lainnya",
+                            memiliki_isian_lainnya: true,
+                            urutan: subOpsiJawaban.length + 1,
+                            id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                        });
+                    }
+
+                    await db.Opsi_jawaban.bulkCreate(subOpsiJawaban);
+
+                    if (has_trigger && subQuestion.trigger_jawaban) {
+                        await processSubPertanyaan(
+                            subQuestion.trigger_jawaban,
+                            id_indikator,
+                            newSubPertanyaan.id_pertanyaan,
+                            subQuestion.keterangan_trigger || keterangan_trigger
+                        );
+                    }
+                }
+            }
+        }
+    }
+};
+
+
+const tambahPertanyaan = async (req, res) => {
+    try {
+        const {
+            teks_pertanyaan, 
+            id_tipe_pertanyaan, 
+            id_indikator, 
+            opsi_jawaban, 
+            trigger_jawaban, 
+            trigger_jawabans, // Tambahkan parameter baru untuk multi-trigger
+            keterangan_trigger
+        } = req.body
 
         if (!teks_pertanyaan || !id_tipe_pertanyaan || !id_indikator) {
             throw new ValidationError('Pertanyaan, tipe pertanyaan, dan indikator')
         }
 
-        const findIndikator = await db.Indikator.findByPk(id_indikator, {transaction})
+        const findIndikator = await db.Indikator.findByPk(id_indikator)
         if (!findIndikator) {
             throw new ValidationError('Data indikator tidak ditemukan')
         }
@@ -464,8 +687,7 @@ const tambahPertanyaan = async (req,res) => {
                 {
                     model: db.Tipe_opsi_jawaban
                 }
-            ],
-            transaction
+            ]
         })
 
         if (!tipePertanyaan) {
@@ -478,7 +700,6 @@ const tambahPertanyaan = async (req,res) => {
                 pertanyaan_id_pertanyaan: null
             },
             order: [['urutan', 'DESC']],
-            transaction
         });
 
         const nextUrutan = lastUrutan ? lastUrutan.urutan + 1 : 1
@@ -488,7 +709,7 @@ const tambahPertanyaan = async (req,res) => {
             tipe_pertanyaan_id_tipe_pertanyaan: id_tipe_pertanyaan,
             indikator_id_indikator: id_indikator,
             urutan: nextUrutan
-        }, {transaction})
+        })
 
         const { nama_tipe, allow_other, has_trigger } = tipePertanyaan.Tipe_opsi_jawaban;
 
@@ -513,76 +734,33 @@ const tambahPertanyaan = async (req,res) => {
                 })
             }
 
-            await db.Opsi_jawaban.bulkCreate(opsiJawabanData, {transaction})
+            await db.Opsi_jawaban.bulkCreate(opsiJawabanData)
 
-            if (has_trigger && trigger_jawaban) {
-                const {trigger_value, sub_pertanyaan} = trigger_jawaban
-
-                if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
-                    // Loop  sub pertanyaan
-                    for(let i = 0; i < sub_pertanyaan.length; i++) {
-                        const subQuestion = sub_pertanyaan[i];
-                        
-                        const lastSubUrutan = await db.Pertanyaan.findOne({
-                            where: { 
-                                indikator_id_indikator: id_indikator,
-                                pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan
-                            },
-                            order: [['urutan', 'DESC']],
-                            transaction
-                        });
-
-                        const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
-
-                        const newSubPertanyaan = await db.Pertanyaan.create({
-                            teks_pertanyaan: subQuestion.teks_pertanyaan,
-                            tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
-                            indikator_id_indikator: id_indikator,
-                            pertanyaan_id_pertanyaan: addPertanyaanUtama.id_pertanyaan, 
-                            trigger_value: trigger_value,
-                            urutan: nextSubUrutan,
-                            keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
-                        }, {transaction})
-
-                        if (subQuestion.opsi_jawaban) {
-                            const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi,index) => ({
-                                teks_opsi: opsi.teks_opsi,
-                                memiliki_isian_lainnya: false,
-                                urutan: index + 1,
-                                id_pertanyaan: newSubPertanyaan.id_pertanyaan
-                            }))
-
-                            await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, {transaction})
-                        }
+            if (has_trigger) {
+                // Cek apakah menggunakan multi-trigger atau single-trigger
+                if (trigger_jawabans && Array.isArray(trigger_jawabans) && trigger_jawabans.length > 0) {
+                    // Mode multi-trigger
+                    for (const triggerItem of trigger_jawabans) {
+                        await processSubPertanyaan(
+                            triggerItem,
+                            id_indikator,
+                            addPertanyaanUtama.id_pertanyaan,
+                            keterangan_trigger
+                        );
                     }
+                } else if (trigger_jawaban) {
+                    // Mode single-trigger (kompatibilitas dengan kode lama)
+                    await processSubPertanyaan(
+                        trigger_jawaban,
+                        id_indikator,
+                        addPertanyaanUtama.id_pertanyaan,
+                        keterangan_trigger
+                    );
                 }
             }
         }
 
-        await transaction.commit()
-        const createdPertanyaan = await db.Pertanyaan.findOne({
-            where: { id_pertanyaan: addPertanyaanUtama.id_pertanyaan },
-            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-            include: [
-                {
-                    model: db.Opsi_jawaban,
-                    as: 'OpsiJawabans',
-                    attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
-                },
-                {
-                    model: db.Pertanyaan,
-                    as: 'ChildPertanyaans',
-                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-                    include: [
-                        {
-                            model: db.Opsi_jawaban,
-                            as: 'OpsiJawabans',
-                            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
-                        }
-                    ]
-                }
-            ]
-        });
+        const createdPertanyaan = await getFullPertanyaanData(addPertanyaanUtama.id_pertanyaan);
 
         return res.status(200).json({
             success: true,
@@ -593,8 +771,6 @@ const tambahPertanyaan = async (req,res) => {
 
     } catch (error) {
         console.error(error)
-        if (transaction) await transaction.rollback();
-        console.error(error)
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
@@ -620,64 +796,111 @@ const tambahPertanyaan = async (req,res) => {
     }
 }
 
+const getFullPertanyaanData = async (id_pertanyaan) => {
+    const mainQuestion = await db.Pertanyaan.findByPk(id_pertanyaan, {
+        attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+        include: [{
+            model: db.Opsi_jawaban,
+            as: 'OpsiJawabans',
+            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
+        }]
+    });
 
+    if (!mainQuestion) return null;
+    const result = mainQuestion.toJSON();
+    
+    result.ChildPertanyaans = await getSubQuestions(id_pertanyaan);
+    
+    return result;
+};
+
+async function getSubQuestions(parentId, level = 1) {
+    if (level > 5) return []; 
+    
+    const questions = await db.Pertanyaan.findAll({
+        where: { 
+            pertanyaan_id_pertanyaan: parentId 
+        },
+        attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+        include: [{
+            model: db.Opsi_jawaban,
+            as: 'OpsiJawabans',
+            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
+        }],
+        order: [['urutan', 'ASC']]
+    });
+    
+    if (questions.length === 0) return [];
+    
+    return await Promise.all(questions.map(async (question) => {
+        const questionJson = question.toJSON();
+        questionJson.ChildPertanyaans = await getSubQuestions(question.id_pertanyaan, level + 1);
+        return questionJson;
+    }));
+};
 // all aspek 
-const allAspek = async (req,res) => {
-    let transaction
+const allAspek = async (req, res) => {
     try {
-        transaction = await sequelize.transaction()
-
         const findAll = await db.Aspek_penilaian.findAll({
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek', 'urutan'],
             order: [['urutan', 'ASC']],
-            where:{
+            where: {
                 parent_id_aspek_penilaian: null
             },
-        }, {transaction})
+            include: [
+                {
+                    model: db.Aspek_penilaian,
+                    as: 'ChildAspeks',
+                    attributes: ['id_aspek_penilaian', 'nama_aspek', 'urutan'],
+                    order: [['urutan', 'ASC']]
+                }
+            ]
+        });
 
-        await transaction.commit()
-        if (findAll.length < 0) {
-            throw new ValidationError('Data aspek penilaian belum tersedia')
+        if (findAll.length === 0) {
+            throw new ValidationError('Data aspek penilaian belum tersedia');
         }
 
-        return res.status(200).json({success:true, status:200, message: 'Data aspek penilaian tersedia', data: findAll})
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data aspek penilaian tersedia', 
+            data: findAll
+        });
 
     } catch (error) {
-        console.error(error)
-        if (transaction) await transaction.rollback();
-        console.error(error)
+        console.error(error);
+        
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
                     success: false,
-                    status:400,
+                    status: 400,
                     message: error.message
                 });
                 
             case NotFoundError:
                 return res.status(404).json({
                     success: false,
-                    status:404,
+                    status: 404,
                     message: error.message
                 });
                 
             default:
                 return res.status(500).json({
                     success: false,
-                    status:500,
+                    status: 500,
                     message: 'Kesalahan Server'
                 });
         }
     }
-}
+};
 
 //detail aspek penilaian
-const detailAspek = async (req,res) => {
-    let transaction
+const detailAspek = async (req, res) => {
     try {
-        transaction = await sequelize.transaction()
+        const { id_aspek_penilaian } = req.params;
 
-        const {id_aspek_penilaian} = req.params
         const findAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian, {
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek', 'urutan'],
             include: [
@@ -686,72 +909,33 @@ const detailAspek = async (req,res) => {
                     as: 'ChildAspeks',
                     required: false,
                     attributes: ['id_aspek_penilaian', 'nama_aspek', 'urutan'],
+                    separate: true,
                     order: [['urutan', 'ASC']],
                     include: [
                         {
                             model: db.Indikator,
                             as: 'Indikators',
                             required: false,
+                            separate: true,
                             attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
                             order: [['urutan', 'ASC']],
                             include: [
                                 {
                                     model: db.Bukti_dukung,
                                     as: 'BuktiDukungs',
+                                    separate: true,
+                                    order: [['urutan', 'ASC']],
                                     required: false,
                                     attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
-                                    order: [['urutan', 'ASC']]
                                 },
                                 {
                                     model: db.Skala_indikator,
                                     as: "skala_indikators",
+                                    separate: true,
                                     required: false,
                                     attributes:['id_skala', 'deskripsi_skala', 'nilai_skala'],
                                     order: [['nilai_skala', 'ASC']]
-                                },
-                                {
-                                    model: db.Pertanyaan,
-                                    as: 'Pertanyaans',
-                                    required: false,
-                                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-                                    where: {
-                                        pertanyaan_id_pertanyaan: null
-                                    },
-                                    include: [
-                                        {
-                                            model: db.Pertanyaan,
-                                            as: 'ChildPertanyaans',
-                                            required: false,
-                                            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-                                            include: [
-                                                {
-                                                    model:db.Tipe_pertanyaan,
-                                                    as: 'TipePertanyaan',
-                                                    attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
-                                                },
-                                                {
-                                                    model: db.Opsi_jawaban,
-                                                    as:'OpsiJawabans',
-                                                    attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
-                                                    order: [['urutan', 'ASC']]
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            model:db.Tipe_pertanyaan,
-                                            as: 'TipePertanyaan',
-                                            required: false,
-                                            attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
-                                        },
-                                        {
-                                            model: db.Opsi_jawaban,
-                                            as:'OpsiJawabans',
-                                            required: false,
-                                            attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
-                                            order: [['urutan', 'ASC']]
-                                        }
-                                    ]
-                                },
+                                }
                             ]
                         }
                     ]
@@ -759,6 +943,7 @@ const detailAspek = async (req,res) => {
                 {
                     model: db.Indikator,
                     as: 'Indikators',
+                    separate: true,
                     required: false,
                     attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
                     order: [['urutan', 'ASC']],
@@ -767,99 +952,192 @@ const detailAspek = async (req,res) => {
                             model: db.Bukti_dukung,
                             as: 'BuktiDukungs',
                             required: false,
+                            separate: true,
                             attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
                             order: [['urutan', 'ASC']]
                         },
                         {
                             model: db.Skala_indikator,
                             as: "skala_indikators",
+                            separate: true,
                             required: false,
                             attributes:['id_skala', 'deskripsi_skala', 'nilai_skala'],
                             order: [['nilai_skala', 'ASC']]
+                        }
+                    ]
+                }
+            ]
+        });
+        
+        if (!findAspek) {
+            throw new ValidationError('Data aspek penilaian tidak ditemukan');
+        }
+
+        const result = findAspek.toJSON();
+
+        // Proses indikator di aspek utama
+        if (result.Indikators && result.Indikators.length > 0) {
+            for (let i = 0; i < result.Indikators.length; i++) {
+                const indikator = result.Indikators[i];
+            
+                const mainQuestions = await db.Pertanyaan.findAll({
+                    where: {
+                        indikator_id_indikator: indikator.id_indikator,
+                        pertanyaan_id_pertanyaan: null
+                    },
+                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                    order: [['urutan', 'ASC']],
+                    include: [
+                        {
+                            model: db.Tipe_pertanyaan,
+                            as: 'TipePertanyaan',
+                            required: false,
+                            attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
                         },
                         {
-                            model: db.Pertanyaan,
-                            as: 'Pertanyaans',
+                            model: db.Opsi_jawaban,
+                            as: 'OpsiJawabans',
                             required: false,
-                            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                            order: [['urutan', 'ASC']]
+                        }
+                    ]
+                });
+  
+                result.Indikators[i].Pertanyaans = await Promise.all(
+                    mainQuestions.map(async (question) => {
+                        const questionJson = question.toJSON();
+                   
+                        const level1Questions = await getSubQuestions(question.id_pertanyaan);
+                        questionJson.ChildPertanyaans = level1Questions;
+                        
+                        return questionJson;
+                    })
+                );
+            }
+        }
+
+        if (result.ChildAspeks && result.ChildAspeks.length > 0) {
+            for (let i = 0; i < result.ChildAspeks.length; i++) {
+                const childAspek = result.ChildAspeks[i];
+                
+                if (childAspek.Indikators && childAspek.Indikators.length > 0) {
+                    for (let j = 0; j < childAspek.Indikators.length; j++) {
+                        const indikator = childAspek.Indikators[j];
+                        
+                        const mainQuestions = await db.Pertanyaan.findAll({
                             where: {
+                                indikator_id_indikator: indikator.id_indikator,
                                 pertanyaan_id_pertanyaan: null
                             },
+                            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+                            order: [['urutan', 'ASC']],
                             include: [
                                 {
-                                    model: db.Pertanyaan,
-                                    as: 'ChildPertanyaans',
-                                    required: false,
-                                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-                                    include: [
-                                        {
-                                            model:db.Tipe_pertanyaan,
-                                            as: 'TipePertanyaan',
-                                            required: false,
-                                            attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
-                                        },
-                                        {
-                                            model: db.Opsi_jawaban,
-                                            as:'OpsiJawabans',
-                                            required: false,
-                                            attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
-                                            order: [['urutan', 'ASC']]
-                                        }
-                                    ]
-                                },
-                                {
-                                    model:db.Tipe_pertanyaan,
+                                    model: db.Tipe_pertanyaan,
                                     as: 'TipePertanyaan',
                                     required: false,
                                     attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
                                 },
                                 {
                                     model: db.Opsi_jawaban,
-                                    as:'OpsiJawabans',
+                                    as: 'OpsiJawabans',
                                     required: false,
-                                    attributes:['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                                    attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
                                     order: [['urutan', 'ASC']]
                                 }
                             ]
-                        },
-                    ]
+                        });
+                        
+                        result.ChildAspeks[i].Indikators[j].Pertanyaans = await Promise.all(
+                            mainQuestions.map(async (question) => {
+                                const questionJson = question.toJSON();
+                
+                                const level1Questions = await getSubQuestions(question.id_pertanyaan);
+                                questionJson.ChildPertanyaans = level1Questions;
+                                
+                                return questionJson;
+                            })
+                        );
+                    }
                 }
-            ]
-        })
-        
-        if (!findAspek) {
-            throw new ValidationError('Data aspek penilaian tidak ditemukan')
+            }
         }
 
-        return res.status(200).json({success:true, status: 200, message: 'Data aspek penilaian ditemukan', data: findAspek})
-
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data aspek penilaian ditemukan', 
+            data: result
+        });
     } catch (error) {
-        console.error(error)
-        if (transaction) await transaction.rollback();
-        console.error(error)
+        console.error(error);
         switch(error.constructor) {
             case ValidationError:
                 return res.status(400).json({
                     success: false,
-                    status:400,
+                    status: 400,
                     message: error.message
                 });
                 
             case NotFoundError:
                 return res.status(404).json({
                     success: false,
-                    status:404,
+                    status: 404,
                     message: error.message
                 });
                 
             default:
                 return res.status(500).json({
                     success: false,
-                    status:500,
+                    status: 500,
                     message: 'Kesalahan Server'
                 });
         }
     }
+};
+
+// Fungsi rekursif untuk mendapatkan sub pertanyaan
+async function getSubQuestions(parentId, level = 1) {
+    if (level > 5) return []; // maks level
+    
+    const questions = await db.Pertanyaan.findAll({
+        where: { pertanyaan_id_pertanyaan: parentId },
+        attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+        order: [['urutan', 'ASC']],
+        include: [
+            {
+                model: db.Tipe_pertanyaan,
+                as: 'TipePertanyaan',
+                required: false,
+                attributes: ['id_tipe_pertanyaan', 'kode_jenis', 'nama_jenis']
+            },
+            {
+                model: db.Opsi_jawaban,
+                as: 'OpsiJawabans',
+                required: false,
+                attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
+                order: [['urutan', 'ASC']]
+            }
+        ]
+    });
+    
+    if (!questions || questions.length === 0) {
+        return [];
+    }
+
+    return await Promise.all(
+        questions.map(async (question) => {
+            const questionJson = question.toJSON();
+ 
+            questionJson.ChildPertanyaans = await getSubQuestions(
+                question.id_pertanyaan, 
+                level + 1
+            );
+            
+            return questionJson;
+        })
+    );
 }
 
 //edit aspek penilaian
@@ -1165,29 +1443,12 @@ const editPertanyaan = async (req, res) => {
             id_tipe_pertanyaan, 
             id_indikator, 
             opsi_jawaban, 
-            trigger_jawaban, 
+            trigger_jawaban,
+            trigger_jawabans, 
             keterangan_trigger 
         } = req.body;
 
-        const existingPertanyaan = await db.Pertanyaan.findByPk(id_pertanyaan, {
-            include: [
-                {
-                    model: db.Opsi_jawaban,
-                    as: 'OpsiJawabans'
-                },
-                {
-                    model: db.Pertanyaan,
-                    as: 'ChildPertanyaans',
-                    include: [
-                        {
-                            model: db.Opsi_jawaban,
-                            as: 'OpsiJawabans'
-                        }
-                    ]
-                }
-            ],
-            transaction
-        });
+        const existingPertanyaan = await db.Pertanyaan.findByPk(id_pertanyaan, { transaction });
 
         if (!existingPertanyaan) {
             throw new NotFoundError('Pertanyaan tidak ditemukan');
@@ -1203,11 +1464,7 @@ const editPertanyaan = async (req, res) => {
         }
 
         const tipePertanyaan = await db.Tipe_pertanyaan.findByPk(id_tipe_pertanyaan, {
-            include: [
-                {
-                    model: db.Tipe_opsi_jawaban
-                }
-            ],
+            include: [{ model: db.Tipe_opsi_jawaban }],
             transaction
         });
 
@@ -1218,8 +1475,9 @@ const editPertanyaan = async (req, res) => {
         await existingPertanyaan.update({
             teks_pertanyaan,
             tipe_pertanyaan_id_tipe_pertanyaan: id_tipe_pertanyaan,
-            indikator_id_indikator: id_indikator
-        }, {transaction});
+            indikator_id_indikator: id_indikator,
+            keterangan_trigger
+        }, { transaction });
 
         const { nama_tipe, allow_other, has_trigger } = tipePertanyaan.Tipe_opsi_jawaban;
 
@@ -1227,12 +1485,10 @@ const editPertanyaan = async (req, res) => {
             if (!opsi_jawaban || opsi_jawaban.length === 0) {
                 throw new ValidationError('Opsi jawaban harus diisi');
             }
-
             await db.Opsi_jawaban.destroy({
                 where: { id_pertanyaan: id_pertanyaan },
                 transaction
             });
-
             const opsiJawabanData = opsi_jawaban.map((opsi, index) => ({
                 teks_opsi: opsi.teks_opsi,
                 memiliki_isian_lainnya: false,
@@ -1249,86 +1505,38 @@ const editPertanyaan = async (req, res) => {
                 });
             }
 
-            await db.Opsi_jawaban.bulkCreate(opsiJawabanData, {transaction});
-            if (has_trigger && trigger_jawaban) {
-                await db.Pertanyaan.destroy({
-                    where: { pertanyaan_id_pertanyaan: id_pertanyaan },
-                    transaction
-                });
+            await db.Opsi_jawaban.bulkCreate(opsiJawabanData, { transaction });
 
-                const { trigger_value, sub_pertanyaan } = trigger_jawaban;
+            // Hapus semua sub-pertanyaan yang ada secara rekursif
+            await deleteSubQuestionsRecursively(id_pertanyaan, transaction);
 
-                if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
-                    for(let i = 0; i < sub_pertanyaan.length; i++) {
-                        const subQuestion = sub_pertanyaan[i];
-                        
-                        const lastSubUrutan = await db.Pertanyaan.findOne({
-                            where: { 
-                                indikator_id_indikator: id_indikator,
-                                pertanyaan_id_pertanyaan: id_pertanyaan
-                            },
-                            order: [['urutan', 'DESC']],
+            if (has_trigger) {
+                if (trigger_jawabans && Array.isArray(trigger_jawabans) && trigger_jawabans.length > 0) {
+                    // Mode multi-trigger
+                    for (const triggerItem of trigger_jawabans) {
+                        await processEditSubPertanyaan(
+                            triggerItem,
+                            id_indikator,
+                            id_pertanyaan,
+                            keterangan_trigger,
                             transaction
-                        });
-
-                        const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
-
-                        const newSubPertanyaan = await db.Pertanyaan.create({
-                            teks_pertanyaan: subQuestion.teks_pertanyaan,
-                            tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
-                            indikator_id_indikator: id_indikator,
-                            pertanyaan_id_pertanyaan: id_pertanyaan,
-                            trigger_value: trigger_value,
-                            urutan: nextSubUrutan,
-                            keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
-                        }, {transaction});
-
-                        if (subQuestion.opsi_jawaban) {
-                            const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi, index) => ({
-                                teks_opsi: opsi.teks_opsi,
-                                memiliki_isian_lainnya: false,
-                                urutan: index + 1,
-                                id_pertanyaan: newSubPertanyaan.id_pertanyaan
-                            }));
-
-                            await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, {transaction});
-                        }
+                        );
                     }
+                } else if (trigger_jawaban) {
+                    await processEditSubPertanyaan(
+                        trigger_jawaban,
+                        id_indikator,
+                        id_pertanyaan,
+                        keterangan_trigger,
+                        transaction
+                    );
                 }
-            } else {
-
-                await db.Pertanyaan.destroy({
-                    where: { pertanyaan_id_pertanyaan: id_pertanyaan },
-                    transaction
-                });
             }
         }
 
         await transaction.commit();
 
-        const updatedPertanyaan = await db.Pertanyaan.findOne({
-            where: { id_pertanyaan },
-            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-            include: [
-                {
-                    model: db.Opsi_jawaban,
-                    as: 'OpsiJawabans',
-                    attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
-                },
-                {
-                    model: db.Pertanyaan,
-                    as: 'ChildPertanyaans',
-                    attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
-                    include: [
-                        {
-                            model: db.Opsi_jawaban,
-                            as: 'OpsiJawabans',
-                            attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan']
-                        }
-                    ]
-                }
-            ]
-        });
+        const updatedPertanyaan = await getFullPertanyaanData(id_pertanyaan);
 
         return res.status(200).json({
             success: true,
@@ -1366,6 +1574,108 @@ const editPertanyaan = async (req, res) => {
     }
 };
 
+
+// Fungsi untuk menghapus sub-pertanyaan secara rekursif
+const deleteSubQuestionsRecursively = async (parentId, transaction) => {
+    const subQuestions = await db.Pertanyaan.findAll({
+        where: { pertanyaan_id_pertanyaan: parentId },
+        transaction
+    });
+    
+    for (const subQuestion of subQuestions) {
+        await deleteSubQuestionsRecursively(subQuestion.id_pertanyaan, transaction);
+        
+        await db.Opsi_jawaban.destroy({
+            where: { id_pertanyaan: subQuestion.id_pertanyaan },
+            transaction
+        });
+    }
+    
+    await db.Pertanyaan.destroy({
+        where: { pertanyaan_id_pertanyaan: parentId },
+        transaction
+    });
+};
+
+const processEditSubPertanyaan = async (
+    trigger_jawaban,
+    id_indikator,
+    parent_id_pertanyaan,
+    keterangan_trigger,
+    transaction,
+    level = 1
+) => {
+    if (level > 5) return; 
+    
+    const { trigger_value, sub_pertanyaan } = trigger_jawaban;
+
+    if (Array.isArray(sub_pertanyaan) && sub_pertanyaan.length > 0) {
+        for (let i = 0; i < sub_pertanyaan.length; i++) {
+            const subQuestion = sub_pertanyaan[i];
+            
+            const lastSubUrutan = await db.Pertanyaan.findOne({
+                where: { 
+                    indikator_id_indikator: id_indikator,
+                    pertanyaan_id_pertanyaan: parent_id_pertanyaan
+                },
+                order: [['urutan', 'DESC']],
+                transaction
+            });
+
+            const nextSubUrutan = lastSubUrutan ? lastSubUrutan.urutan + 1 : 1;
+
+            const newSubPertanyaan = await db.Pertanyaan.create({
+                teks_pertanyaan: subQuestion.teks_pertanyaan,
+                tipe_pertanyaan_id_tipe_pertanyaan: subQuestion.id_tipe_pertanyaan,
+                indikator_id_indikator: id_indikator,
+                pertanyaan_id_pertanyaan: parent_id_pertanyaan,
+                trigger_value: trigger_value,
+                urutan: nextSubUrutan,
+                keterangan_trigger: subQuestion.keterangan_trigger || keterangan_trigger
+            }, { transaction });
+
+            if (subQuestion.opsi_jawaban && subQuestion.opsi_jawaban.length > 0) {
+                const subTipePertanyaan = await db.Tipe_pertanyaan.findByPk(subQuestion.id_tipe_pertanyaan, {
+                    include: [{ model: db.Tipe_opsi_jawaban }],
+                    transaction
+                });
+
+                if (subTipePertanyaan) {
+                    const { allow_other, has_trigger } = subTipePertanyaan.Tipe_opsi_jawaban;
+
+                    const subOpsiJawaban = subQuestion.opsi_jawaban.map((opsi, index) => ({
+                        teks_opsi: opsi.teks_opsi,
+                        memiliki_isian_lainnya: false,
+                        urutan: index + 1,
+                        id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                    }));
+
+                    if (allow_other) {
+                        subOpsiJawaban.push({
+                            teks_opsi: "Lainnya",
+                            memiliki_isian_lainnya: true,
+                            urutan: subOpsiJawaban.length + 1,
+                            id_pertanyaan: newSubPertanyaan.id_pertanyaan
+                        });
+                    }
+
+                    await db.Opsi_jawaban.bulkCreate(subOpsiJawaban, { transaction });
+
+                    if (has_trigger && subQuestion.trigger_jawaban) {
+                        await processEditSubPertanyaan(
+                            subQuestion.trigger_jawaban,
+                            id_indikator,
+                            newSubPertanyaan.id_pertanyaan,
+                            subQuestion.keterangan_trigger || keterangan_trigger,
+                            transaction,
+                            level + 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+};
 
 // hapus aspek penilaian
 const hapusAspekPenilaian = async (req,res) => {
