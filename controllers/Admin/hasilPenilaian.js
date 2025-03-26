@@ -83,6 +83,18 @@ const getHasilPenilaian = async (req, res) => {
                         model: db.Nilai_akhir,
                         as: 'nilai_akhir',
                         attributes: ['total_nilai']
+                    },
+                    {
+                        model:db.Evaluator_periode_penilaian,
+                        as: 'evaluator_periode_penilaian',
+                        include: [
+                            {
+                                model: db.Evaluator,
+                                as: 'evaluator',
+                                attributes: ['nama']
+                            }
+                        ],
+                        attributes: []
                     }
                 ]
             })
@@ -140,7 +152,7 @@ const getHasilPenilaian = async (req, res) => {
                 
                 return item;
             });
-        } else {
+        } else if (tahun_periode){
             if (!tahun_periode) {
                 throw new ValidationError('Data tahun periode tidak ditemukan')
             }
@@ -158,7 +170,68 @@ const getHasilPenilaian = async (req, res) => {
                         where:{
                             tahun_periode
                         },
-                        attributes: ['id_periode_penilaian','tahun_periode']
+                        attributes: ['id_periode_penilaian','tahun_periode'],
+                        include: [
+                            {
+                                model: db.Evaluator,
+                                as: 'evaluators',
+                                attributes: ['nama']
+                            }
+                        ]
+                    }
+                ],
+                attributes: ['id_nilai_kumulatif', 'total_kumulatif', 'kategori'],
+                order: [['total_kumulatif', 'DESC']] 
+            });
+
+            const totalOpd = findData.length; 
+
+
+            findData = findData.map((item, index) => {
+                if (item.total_kumulatif) {
+                    let kategori = item.kategori;
+                    
+                    let zona = '';
+                    
+                    if (['B', 'A-', 'A'].includes(kategori)) {
+                        zona = 'Hijau';
+                    } else if (['B-', 'C', 'C-'].includes(kategori)) {
+                        zona = 'Kuning';
+                    } else if (['D', 'E', 'F'].includes(kategori)) {
+                        zona = 'Merah';
+                    } else {
+                        zona = 'Undefined';
+                    }
+                    
+                    return {
+                        ...item.toJSON(),
+                        zona,
+                        peringkat: index + 1,
+                        dari_total: totalOpd
+                    };
+                }
+                
+                return item;
+            });
+        } else {
+            findData = await db.Nilai_akhir_kumulatif.findAll({
+                include: [
+                    {
+                        model: db.Opd,
+                        as: 'opd',
+                        attributes:['id_opd', 'nama_opd']
+                    },
+                    {
+                        model: db.Periode_penilaian,
+                        as: 'periode_penilaian',
+                        attributes: ['id_periode_penilaian','tahun_periode'],
+                        include: [
+                            {
+                                model: db.Evaluator,
+                                as: 'evaluators',
+                                attributes: ['nama']
+                            }
+                        ]
                     }
                 ],
                 attributes: ['id_nilai_kumulatif', 'total_kumulatif', 'kategori'],

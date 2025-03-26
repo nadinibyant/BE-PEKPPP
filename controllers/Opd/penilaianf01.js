@@ -32,9 +32,28 @@ const getPeriode = async (req, res) => {
             },
             transaction
         });
+
+        const periodeWithF01 = await db.Periode_penilaian.findOne({
+            where: { 
+                id_periode_penilaian: findPeriode.id_periode_penilaian
+            },
+            attributes: ['id_periode_penilaian', 'tahun_periode', 'tanggal_selesai', 'status'],
+            include: [
+                {
+                    model: db.Pengisian_f01,
+                    as: 'pengisian_f01s',
+                    where: {
+                        id_opd
+                    },
+                    required: false,
+                    attributes: ['id_pengisian_f01', 'status_pengisian']
+                }
+            ],
+            transaction
+        });
         
         const result = {
-            ...findPeriode.get({ plain: true }),
+            ...periodeWithF01.get({ plain: true }),
             status_submit: checkPengisianF01 ? "submit" : "belum submit"
         };
         
@@ -116,9 +135,16 @@ const submitPenilaianf01 = async (req, res) => {
                 status_pengisian: 'Menunggu Verifikasi',
                 updatedAt: new Date()
             }, { transaction });
+
+            console.log(`Menghapus semua jawaban lama untuk pengisian ${pengisianF01.id_pengisian_f01}`);
+            await db.Jawaban.destroy({
+                where: {
+                    id_pengisian_f01: pengisianF01.id_pengisian_f01
+                },
+                transaction
+            });
         }
         
-        // Proses jawaban
         const jawaban = req.body.jawaban;
         
         let jawabanData;
@@ -137,38 +163,65 @@ const submitPenilaianf01 = async (req, res) => {
         if (!jawabanData || !Array.isArray(jawabanData)) {
             throw new ValidationError('Format jawaban tidak valid');
         }
+        const processedMultipleChoiceQuestions = new Set();
 
         for (const item of jawabanData) {
-            const { id_pertanyaan, id_opsi_jawaban, jawaban_text } = item;
+            const { id_pertanyaan, id_opsi_jawaban, jawaban_text, jawaban_lainnya } = item;
             
             if (!id_pertanyaan) {
                 throw new ValidationError('ID pertanyaan diperlukan untuk setiap jawaban');
             }
             
-            const existingJawaban = await db.Jawaban.findOne({
-                where: {
-                    id_pertanyaan,
-                    id_pengisian_f01: pengisianF01.id_pengisian_f01
-                },
+            const pertanyaan = await db.Pertanyaan.findOne({
+                where: { id_pertanyaan },
+                include: [{
+                    model: db.Tipe_pertanyaan,
+                    foreignKey: 'tipe_pertanyaan_id_tipe_pertanyaan',
+                    as: 'TipePertanyaan',
+                    include: [{
+                        model: db.Tipe_opsi_jawaban,
+                        foreignKey: 'id_tipe_pertanyaan'
+                    }]
+                }],
                 transaction
             });
             
-            if (existingJawaban) {
-                await existingJawaban.update({
-                    id_opsi_jawaban: id_opsi_jawaban || null,
-                    jawaban_text: jawaban_text || null,
-                    updatedAt: new Date()
-                }, { transaction });
-            } else {
+            let isMultipleChoice = false;
+            
+            if (pertanyaan && pertanyaan.TipePertanyaan) {
+                isMultipleChoice = 
+                    pertanyaan.TipePertanyaan.kode_jenis === 'multiple_choice' || 
+                    pertanyaan.TipePertanyaan.kode_jenis === 'multi_choice_other';
+                if (!isMultipleChoice && pertanyaan.TipePertanyaan.Tipe_opsi_jawaban) {
+                    isMultipleChoice = pertanyaan.TipePertanyaan.Tipe_opsi_jawaban.nama_tipe === 'multi_select';
+                }
+            }
+            
+            console.log(`Pertanyaan ${id_pertanyaan} isMultipleChoice:`, isMultipleChoice);
+            if (isMultipleChoice && id_opsi_jawaban) {
+                if (!processedMultipleChoiceQuestions.has(id_pertanyaan)) {
+                    processedMultipleChoiceQuestions.add(id_pertanyaan);
+                }
+                
+                // Buat jawaban baru untuk opsi ini
+                console.log(`Membuat jawaban baru untuk pertanyaan ${id_pertanyaan}, opsi ${id_opsi_jawaban}`);
                 await db.Jawaban.create({
                     id_pertanyaan,
                     id_pengisian_f01: pengisianF01.id_pengisian_f01,
-                    id_opsi_jawaban: id_opsi_jawaban || null,
-                    jawaban_text: jawaban_text || null
+                    id_opsi_jawaban,
+                    jawaban_text: jawaban_lainnya || null
                 }, { transaction });
+                
+                continue; 
             }
+            console.log(`Buat jawaban baru untuk pertanyaan ${id_pertanyaan}`);
+            await db.Jawaban.create({
+                id_pertanyaan,
+                id_pengisian_f01: pengisianF01.id_pengisian_f01,
+                id_opsi_jawaban: id_opsi_jawaban || null,
+                jawaban_text: jawaban_text || null
+            }, { transaction });
         }
-        
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
             console.log(`Uploaded ${req.files.length} files`);
             
@@ -189,25 +242,73 @@ const submitPenilaianf01 = async (req, res) => {
             if (!Array.isArray(buktiDukungData)) {
                 buktiDukungData = [];
             }
+            let existingFiles = [];
+            if (req.body.existing_files) {
+                try {
+                    if (typeof req.body.existing_files === 'string') {
+                        existingFiles = JSON.parse(req.body.existing_files);
+                    } else if (Array.isArray(req.body.existing_files)) {
+                        existingFiles = req.body.existing_files;
+                    }
+                } catch (error) {
+                    console.error('Error parsing existing_files:', error);
+                }
+            }
             
+            console.log('Existing files to preserve:', existingFiles);
+            
+            const keepFileNames = existingFiles.map(file => file.nama_file);
+            const keepBuktiIds = new Set([
+                ...existingFiles.map(file => file.id_bukti_dukung),
+                ...buktiDukungData.map(bukti => bukti.id_bukti_dukung)
+            ]);
+            
+            if (keepBuktiIds.size > 0) {
+                await db.Bukti_dukung_upload.destroy({
+                    where: {
+                        id_pengisian_f01: pengisianF01.id_pengisian_f01,
+                        [Sequelize.Op.and]: [
+                            {
+                                [Sequelize.Op.or]: [
+                                    {
+                                        id_bukti_dukung: {
+                                            [Sequelize.Op.notIn]: Array.from(keepBuktiIds)
+                                        }
+                                    },
+                                    {
+                                        nama_file: {
+                                            [Sequelize.Op.notIn]: keepFileNames
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    transaction
+                });
+            }
+            
+            // Log for debugging
             buktiDukungData.forEach((item, idx) => {
                 console.log(`Bukti dukung ${idx}:`, item);
             });
-            
-            // Proses file yang diupload
             for (let i = 0; i < req.files.length; i++) {
                 const file = req.files[i];
                 console.log(`Processing file ${i}:`, file.originalname);
+                const fieldIndex = file.fieldname ? parseInt(file.fieldname.replace('bukti_file_', ''), 10) : null;
+                let buktiData = null;
                 
-
-                const buktiData = i < buktiDukungData.length ? buktiDukungData[i] : null;
+                if (!isNaN(fieldIndex) && fieldIndex < buktiDukungData.length) {
+                    buktiData = buktiDukungData[fieldIndex];
+                } else if (i < buktiDukungData.length) {
+                    buktiData = buktiDukungData[i];
+                }
                 
                 if (!buktiData || !buktiData.id_bukti_dukung) {
                     console.warn(`Skipping file ${i} - no associated bukti_dukung data`);
                     continue;
                 }
                 
-
                 if (!file.filename) {
                     console.error(`File ${i} doesn't have a filename property`);
                     console.log('File object:', file);
@@ -215,6 +316,14 @@ const submitPenilaianf01 = async (req, res) => {
                 }
                 
                 const relativePath = `../public/doc/bukti_dukung/${file.filename}`;
+                
+                await db.Bukti_dukung_upload.destroy({
+                    where: {
+                        id_bukti_dukung: buktiData.id_bukti_dukung,
+                        id_pengisian_f01: pengisianF01.id_pengisian_f01
+                    },
+                    transaction
+                });
                 
                 try {
                     await db.Bukti_dukung_upload.create({
@@ -232,7 +341,36 @@ const submitPenilaianf01 = async (req, res) => {
                 }
             }
         } else {
-            console.log('No files uploaded');
+            console.log('No new files uploaded');
+            let existingFiles = [];
+            if (req.body.existing_files) {
+                try {
+                    if (typeof req.body.existing_files === 'string') {
+                        existingFiles = JSON.parse(req.body.existing_files);
+                    } else if (Array.isArray(req.body.existing_files)) {
+                        existingFiles = req.body.existing_files;
+                    }
+                } catch (error) {
+                    console.error('Error parsing existing_files:', error);
+                }
+            }
+            
+            if (existingFiles.length > 0) {
+                console.log(`Preserving ${existingFiles.length} existing files`);
+                const allBuktiDukungIds = new Set();
+                const keepFileNames = existingFiles.map(file => file.nama_file);
+                await db.Bukti_dukung_upload.destroy({
+                    where: {
+                        id_pengisian_f01: pengisianF01.id_pengisian_f01,
+                        nama_file: {
+                            [Sequelize.Op.notIn]: keepFileNames
+                        }
+                    },
+                    transaction
+                });
+            } else {
+                console.log('No existing files specified to preserve');
+            }
         }
         
         await transaction.commit();
@@ -272,5 +410,4 @@ const submitPenilaianf01 = async (req, res) => {
         }
     }
 };
-
 module.exports = {getPeriode, submitPenilaianf01}

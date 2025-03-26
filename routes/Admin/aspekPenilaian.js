@@ -10,7 +10,7 @@ router.post('/skala-indikator', middleware.verifyTokenUser, controllers.tambahSk
 router.get('/tipe-pertanyaan', controllers.tipePertanyaan)
 router.post('/pertanyaan', controllers.tambahPertanyaan)
 
-router.get('/aspek-penilaian', controllers.allAspek)
+router.get('/aspek-penilaian', middleware.verifyTokenUser, controllers.allAspek)
 router.get('/aspek-penilaian/:id_aspek_penilaian', controllers.detailAspek)
 router.put('/aspek-penilaian/:id_aspek_penilaian', middleware.verifyTokenUser, controllers.editAspekPenilaian)
 

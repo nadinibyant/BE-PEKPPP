@@ -10,8 +10,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_opd',
         targetKey: 'id_user',
         as: 'user',
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE'
+
       });
 
       Opd.hasMany(models.Message, {

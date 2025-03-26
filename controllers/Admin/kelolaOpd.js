@@ -180,4 +180,28 @@ const hapusOpd = async (req,res) => {
     }
 }
 
-module.exports = {tambahOpd, listOpd, editOpd, hapusOpd}
+const detailOpd = async (req,res) => {
+    try {
+        const {id_opd} = req.params
+        const findOpd = await db.Opd.findByPk(id_opd, {
+            include: [
+                {
+                    model: db.User,
+                    as: 'user',
+                    attributes: ['id_user', 'email']
+                }
+            ],
+            attributes: ['id_opd', 'nama_opd']
+        })
+        if (!findOpd) {
+            return res.status(400).json({success: false, status:400, message: 'Data opd tidak ditemukan'})
+        }
+        return res.status(200).json({success: true, status: 200, message: 'Data ditemukan', data: findOpd})
+
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({success:false, status:500, message: 'Kesalahan Server'})
+    }
+}
+
+module.exports = {tambahOpd, listOpd, editOpd, hapusOpd, detailOpd}

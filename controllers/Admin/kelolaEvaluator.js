@@ -153,7 +153,9 @@ const allEvaluator = async (req, res) => {
                     as: 'user',
                     attributes: ['email']
                 }
-            ]
+            ],
+            separate: true,
+            order: [['nama', 'ASC']]
         });
 
         if (findEvaluator.length <= 0) {

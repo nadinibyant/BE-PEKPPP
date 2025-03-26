@@ -26,9 +26,10 @@ const fileFilter = (req, file, cb) => {
     'image/jpeg',
     'image/png',
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'video/mp4',
+    'video/webm',
+    'video/avi',
   ];
   
   if (allowedTypes.includes(file.mimetype)) {
@@ -49,8 +50,7 @@ const upload = multer({
 // middleware handling
 //bukti dukung
 const uploadBuktiDukung = (req, res, next) => {
-  // maks 10 file
-  upload.array('bukti_file', 10)(req, res, (err) => {
+  upload.array('bukti_file')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       return res.status(400).json({
         success: false,

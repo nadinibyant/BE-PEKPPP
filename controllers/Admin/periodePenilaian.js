@@ -27,6 +27,30 @@ const tambahPeriode = async (req, res) => {
             });
         }
 
+        const overlappingPeriode = await db.Periode_penilaian.findOne({
+            where: {
+                [db.Sequelize.Op.or]: [
+                    {
+                        tanggal_mulai: { [db.Sequelize.Op.lte]: dateStart },
+                        tanggal_selesai: { [db.Sequelize.Op.gte]: dateStart }
+                    },
+                    {
+                        tanggal_mulai: { [db.Sequelize.Op.lte]: dateEnd },
+                        tanggal_selesai: { [db.Sequelize.Op.gte]: dateEnd }
+                    },
+                    {
+                        tanggal_mulai: { [db.Sequelize.Op.gte]: dateStart },
+                        tanggal_selesai: { [db.Sequelize.Op.lte]: dateEnd }
+                    }
+                ]
+            },
+            transaction
+        });
+        
+        if (overlappingPeriode) {
+            throw new ValidationError('Periode dengan tanggal tersebut sudah ada');
+        }
+
         transaction = await sequelize.transaction();
 
         const [totalEvaluator, totalOpd, findTanggal] = await Promise.all([
@@ -116,10 +140,18 @@ const tampilPeriode = async (req,res) => {
                     attributes: ['id_evaluator', 'nama'],
                     through: {
                         attributes: []
-                    }
+                    },
+                    include: [
+                        {
+                            model: db.User,
+                            as: 'user',
+                            attributes: ['email']
+                        }
+                    ]
                 }
             ],
-            order: ['tahun_periode']
+            separate: true,
+            order: [['tahun_periode', 'DESC']]
         })
         return res.status(200).json({success:true, status:200, message: 'Data periode ditemukan', data: findPeriode})
 

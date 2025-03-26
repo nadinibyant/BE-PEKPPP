@@ -10,9 +10,6 @@ const getDataVerifikasi = async (req, res) => {
         const offset = parseInt(req.query.offset || 0);
 
         const findAll = await db.Pengisian_f01.findAll({
-            where: {
-                status_pengisian: 'Menunggu Verifikasi',
-            },
             include: [
                 {
                     model: db.Opd,
@@ -75,7 +72,7 @@ const detailVerifikasi = async (req, res) => {
     try {
         const { id_pengisian_f01 } = req.params;
         
-        // Fetch raw data
+        // Fetch raw data with the same includes as before
         const findPengisian = await db.Pengisian_f01.findByPk(id_pengisian_f01, {
             include: [
                 {
@@ -91,12 +88,27 @@ const detailVerifikasi = async (req, res) => {
                         {
                             model: db.Pertanyaan,
                             as: 'pertanyaan',
+                            seperate: true,
+                            order: [['urutan', 'ASC']],
                             attributes: ['id_pertanyaan', 'pertanyaan_id_pertanyaan', 'indikator_id_indikator', 'teks_pertanyaan', 'urutan', 'trigger_value', 'keterangan_trigger'],
                             include: [
                                 {
                                     model: db.Indikator,
                                     as: 'Indikator',
-                                    attributes: ['id_indikator', 'nama_indikator', 'kode_indikator']
+                                    attributes: ['id_indikator', 'nama_indikator', 'kode_indikator', 'urutan'],
+                                    seperate: true,
+                                    order: [['urutan', 'ASC']] // Add explicit ordering by urutan
+                                },
+                                // Add TipePertanyaan to determine multiple choice
+                                {
+                                    model: db.Tipe_pertanyaan,
+                                    foreignKey: 'tipe_pertanyaan_id_tipe_pertanyaan', 
+                                    as: 'TipePertanyaan',
+                                    attributes: ['id_tipe_pertanyaan', 'nama_jenis', 'kode_jenis'],
+                                    include: [{
+                                        model: db.Tipe_opsi_jawaban,
+                                        attributes: ['id_tipe_opsi', 'nama_tipe']
+                                    }]
                                 }
                             ]
                         },
@@ -120,7 +132,8 @@ const detailVerifikasi = async (req, res) => {
                         {
                             model: db.Indikator,
                             as: 'indikator',
-                            attributes: ['id_indikator', 'nama_indikator', 'kode_indikator']
+                            attributes: ['id_indikator', 'nama_indikator', 'kode_indikator', 'urutan'],
+                            order: [['urutan', 'ASC']] // Add explicit ordering
                         }
                     ]
                 }
@@ -132,9 +145,19 @@ const detailVerifikasi = async (req, res) => {
             throw new NotFoundError('Data pengisian f01 tidak ditemukan');
         }
 
+        // Group jawaban by pertanyaan
+        const jawabanByPertanyaan = new Map();
+        findPengisian.jawabans.forEach(jawaban => {
+            const pertanyaanId = jawaban.id_pertanyaan;
+            if (!jawabanByPertanyaan.has(pertanyaanId)) {
+                jawabanByPertanyaan.set(pertanyaanId, []);
+            }
+            jawabanByPertanyaan.get(pertanyaanId).push(jawaban);
+        });
 
         const indikatorMap = new Map();
    
+        // Process each pertanyaan and its jawaban
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan && jawaban.pertanyaan.Indikator) {
                 const indikator = jawaban.pertanyaan.Indikator;
@@ -145,6 +168,7 @@ const detailVerifikasi = async (req, res) => {
                         id_indikator: indikatorId,
                         nama_indikator: indikator.nama_indikator,
                         kode_indikator: indikator.kode_indikator,
+                        urutan: indikator.urutan, // Store urutan for sorting
                         pertanyaan: {},
                         bukti_dukung: []
                     });
@@ -152,6 +176,7 @@ const detailVerifikasi = async (req, res) => {
             }
         });
         
+        // Process bukti_dukung
         findPengisian.bukti_dukung_uploads.forEach(bukti => {
             if (bukti.indikator) {
                 const indikatorId = bukti.indikator.id_indikator;
@@ -161,6 +186,7 @@ const detailVerifikasi = async (req, res) => {
                         id_indikator: indikatorId,
                         nama_indikator: bukti.indikator.nama_indikator,
                         kode_indikator: bukti.indikator.kode_indikator,
+                        urutan: bukti.indikator.urutan, // Store urutan for sorting
                         pertanyaan: {},
                         bukti_dukung: []
                     });
@@ -178,40 +204,76 @@ const detailVerifikasi = async (req, res) => {
             }
         });
         
-
+        // Process pertanyaan and determine multiple choice
         const pertanyaanMap = new Map();
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan) {
                 const pertanyaan = jawaban.pertanyaan;
-                pertanyaanMap.set(pertanyaan.id_pertanyaan, {
-                    id_pertanyaan: pertanyaan.id_pertanyaan,
-                    pertanyaan_id_pertanyaan: pertanyaan.pertanyaan_id_pertanyaan,
-                    indikator_id: pertanyaan.Indikator ? pertanyaan.Indikator.id_indikator : null,
-                    teks_pertanyaan: pertanyaan.teks_pertanyaan,
-                    urutan: pertanyaan.urutan,
-                    trigger_value: pertanyaan.trigger_value,
-                    keterangan_trigger: pertanyaan.keterangan_trigger,
-                    jawaban: null,
-                    child_pertanyaan: []
-                });
+                
+                if (!pertanyaanMap.has(pertanyaan.id_pertanyaan)) {
+                    // Check if pertanyaan is multiple choice
+                    let isMultipleChoice = false;
+                    
+                    if (pertanyaan.TipePertanyaan) {
+                        const tipePertanyaan = pertanyaan.TipePertanyaan;
+                        
+                        // Check based on kode_jenis
+                        isMultipleChoice = 
+                            tipePertanyaan.kode_jenis === 'multiple_choice' || 
+                            tipePertanyaan.kode_jenis === 'multi_choice_other';
+                        
+                        // If not detected yet, check from Tipe_opsi_jawaban
+                        if (!isMultipleChoice && tipePertanyaan.Tipe_opsi_jawaban) {
+                            isMultipleChoice = tipePertanyaan.Tipe_opsi_jawaban.nama_tipe === 'multi_select';
+                        }
+                    }
+                    
+                    pertanyaanMap.set(pertanyaan.id_pertanyaan, {
+                        id_pertanyaan: pertanyaan.id_pertanyaan,
+                        pertanyaan_id_pertanyaan: pertanyaan.pertanyaan_id_pertanyaan,
+                        indikator_id: pertanyaan.Indikator ? pertanyaan.Indikator.id_indikator : null,
+                        teks_pertanyaan: pertanyaan.teks_pertanyaan,
+                        urutan: pertanyaan.urutan,
+                        trigger_value: pertanyaan.trigger_value,
+                        keterangan_trigger: pertanyaan.keterangan_trigger,
+                        isMultipleChoice: isMultipleChoice,
+                        jawaban: isMultipleChoice ? [] : null,
+                        child_pertanyaan: []
+                    });
+                }
             }
         });
     
+        // Process jawaban based on whether pertanyaan is multiple choice or not
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan) {
                 const pertanyaanId = jawaban.pertanyaan.id_pertanyaan;
+                
                 if (pertanyaanMap.has(pertanyaanId)) {
-                    pertanyaanMap.get(pertanyaanId).jawaban = {
+                    const pertanyaanData = pertanyaanMap.get(pertanyaanId);
+                    
+                    const jawabanObj = {
+                        id_jawaban: jawaban.id_jawaban,
                         jawaban_text: jawaban.jawaban_text,
                         opsi_jawaban: jawaban.opsi_jawaban ? {
+                            id_opsi_jawaban: jawaban.opsi_jawaban.id_opsi_jawaban,
                             teks_opsi: jawaban.opsi_jawaban.teks_opsi,
                             memiliki_isian_lainnya: jawaban.opsi_jawaban.memiliki_isian_lainnya
                         } : null
                     };
+                    
+                    if (pertanyaanData.isMultipleChoice) {
+                        // For multiple choice, add to array
+                        pertanyaanData.jawaban.push(jawabanObj);
+                    } else {
+                        // For single choice, set directly
+                        pertanyaanData.jawaban = jawabanObj;
+                    }
                 }
             }
         });
 
+        // Connect pertanyaan to indikator
         pertanyaanMap.forEach((pertanyaan, id) => {
             if (pertanyaan.indikator_id && indikatorMap.has(pertanyaan.indikator_id)) {
                 const indikatorObj = indikatorMap.get(pertanyaan.indikator_id);
@@ -221,28 +283,36 @@ const detailVerifikasi = async (req, res) => {
             }
         });
     
+        // Handle child pertanyaan
         pertanyaanMap.forEach((pertanyaan) => {
-            if (pertanyaan.pertanyaan && pertanyaan.pertanyaan.Indikator) {
-                const indikatorId = pertanyaan.pertanyaan.Indikator.id_indikator;
-                if (indikatorMap.has(indikatorId)) {
-                    const indikatorObj = indikatorMap.get(indikatorId);
-                    if (!indikatorObj.pertanyaan[pertanyaan.id_pertanyaan]) {
-                        indikatorObj.pertanyaan[pertanyaan.id_pertanyaan] = pertanyaan;
-                    }
+            if (pertanyaan.pertanyaan_id_pertanyaan) {
+                const parentId = pertanyaan.pertanyaan_id_pertanyaan;
+                if (pertanyaanMap.has(parentId)) {
+                    pertanyaanMap.get(parentId).child_pertanyaan.push(pertanyaan);
+                    // Remove from the main pertanyaan list (optional)
+                    // Consider if you want to keep the child in both places
                 }
             }
         });
         
+        // Sort everything
         indikatorMap.forEach(indikator => {
+            // Sort child pertanyaan by urutan
             Object.values(indikator.pertanyaan).forEach(pertanyaan => {
                 pertanyaan.child_pertanyaan.sort((a, b) => a.urutan - b.urutan);
             });
+            
+            // Convert pertanyaan object to array and sort
             indikator.pertanyaan = Object.values(indikator.pertanyaan)
                 .sort((a, b) => a.urutan - b.urutan);
+            
+            // Sort bukti_dukung
             indikator.bukti_dukung.sort((a, b) => a.urutan - b.urutan);
         });
         
-        const indikatorData = Array.from(indikatorMap.values());
+        // Convert to array and sort by indikator urutan
+        const indikatorData = Array.from(indikatorMap.values())
+            .sort((a, b) => a.urutan - b.urutan);
 
         const responseData = {
             id_pengisian_f01: findPengisian.id_pengisian_f01,

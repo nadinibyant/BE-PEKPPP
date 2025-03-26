@@ -157,6 +157,7 @@ const tambahIndikator = async (req, res) => {
 
             const findLastUrutan = await db.Indikator.findOne({
                 where: { id_aspek_penilaian },
+                seperate:true,
                 order: [['urutan', 'DESC']],
                 transaction
             });
@@ -669,7 +670,7 @@ const tambahPertanyaan = async (req, res) => {
             id_indikator, 
             opsi_jawaban, 
             trigger_jawaban, 
-            trigger_jawabans, // Tambahkan parameter baru untuk multi-trigger
+            trigger_jawabans,
             keterangan_trigger
         } = req.body
 
@@ -737,9 +738,7 @@ const tambahPertanyaan = async (req, res) => {
             await db.Opsi_jawaban.bulkCreate(opsiJawabanData)
 
             if (has_trigger) {
-                // Cek apakah menggunakan multi-trigger atau single-trigger
                 if (trigger_jawabans && Array.isArray(trigger_jawabans) && trigger_jawabans.length > 0) {
-                    // Mode multi-trigger
                     for (const triggerItem of trigger_jawabans) {
                         await processSubPertanyaan(
                             triggerItem,
@@ -749,7 +748,6 @@ const tambahPertanyaan = async (req, res) => {
                         );
                     }
                 } else if (trigger_jawaban) {
-                    // Mode single-trigger (kompatibilitas dengan kode lama)
                     await processSubPertanyaan(
                         trigger_jawaban,
                         id_indikator,
@@ -998,6 +996,7 @@ const detailAspek = async (req, res) => {
                             model: db.Opsi_jawaban,
                             as: 'OpsiJawabans',
                             required: false,
+                            separate: true,
                             attributes: ['id_opsi_jawaban', 'teks_opsi', 'memiliki_isian_lainnya', 'urutan'],
                             order: [['urutan', 'ASC']]
                         }

@@ -13,6 +13,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/file-bukti-dukung', express.static(path.join(__dirname, 'public/doc/bukti_dukung')));
 
 const corsOptions = {
   origin: process.env.NODE_ENV === 'development'

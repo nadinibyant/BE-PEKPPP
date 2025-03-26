@@ -7,5 +7,6 @@ router.post('/opd', middleware.verifyTokenUser, controllers.tambahOpd)
 router.get('/opd', middleware.verifyTokenUser, controllers.listOpd)
 router.put('/opd/:id_user', middleware.verifyTokenUser, controllers.editOpd)
 router.delete('/opd/:id_user', middleware.verifyTokenUser, controllers.hapusOpd)
+router.get('/opd/:id_opd', middleware.verifyTokenUser, controllers.detailOpd)
 
 module.exports = router

@@ -85,6 +85,7 @@ const getQuestF02 = async (req, res) => {
         where: {
           parent_id_aspek_penilaian: null
         },
+        separate:true,
         order: [
           ['urutan', 'ASC'] 
         ],
@@ -93,6 +94,7 @@ const getQuestF02 = async (req, res) => {
             model: db.Aspek_penilaian,
             as: 'ChildAspeks',
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'urutan'],
+            separate: true,
             order: [
               ['urutan', 'ASC']
             ],
@@ -101,6 +103,7 @@ const getQuestF02 = async (req, res) => {
                 model: db.Indikator,
                 as: 'Indikators',
                 attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
+                separate: true,
                 order: [
                   ['urutan', 'ASC']
                 ],
@@ -109,6 +112,7 @@ const getQuestF02 = async (req, res) => {
                     model: db.Skala_indikator,
                     as: 'skala_indikators',
                     attributes: ['id_skala', 'deskripsi_skala', 'nilai_skala'],
+                    separate: true,
                     order: [
                       ['nilai_skala', 'ASC']
                     ]
@@ -121,6 +125,7 @@ const getQuestF02 = async (req, res) => {
             model: db.Indikator,
             as: 'Indikators',
             attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator', 'penjelasan', 'urutan'],
+            separate: true,
             order: [
               ['urutan', 'ASC']
             ],
@@ -129,13 +134,12 @@ const getQuestF02 = async (req, res) => {
                 model: db.Skala_indikator,
                 as: 'skala_indikators',
                 attributes: ['id_skala', 'deskripsi_skala', 'nilai_skala'],
+                separate: true,
                 order: [
                   ['nilai_skala', 'ASC'] 
                 ],
-                separate: true 
               }
             ],
-            separate: true 
           }
         ]
       });
@@ -186,7 +190,7 @@ const getQuestF02 = async (req, res) => {
 // detail f-01 per opd dan per indikator
 const findf01Opd = async (req, res) => {
     try {
-        const id_opd = req.user.id_user;
+        const id_opd = req.user.id_user
         const { id_indikator } = req.params;
 
         const findIndikator = await db.Indikator.findByPk(id_indikator);
@@ -221,13 +225,25 @@ const findf01Opd = async (req, res) => {
                 indikator_id_indikator: id_indikator
             },
             attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+            separate: true,
             order: [['urutan', 'ASC']],
             include: [
                 {
                     model: db.Opsi_jawaban,
                     as: 'OpsiJawabans',
                     attributes: ['id_opsi_jawaban', 'teks_opsi', 'urutan', 'memiliki_isian_lainnya'],
+                    separate: true,
                     order: [['urutan', 'ASC']]
+                },
+                {
+                    model: db.Tipe_pertanyaan,
+                    foreignKey: 'tipe_pertanyaan_id_tipe_pertanyaan', 
+                    as: 'TipePertanyaan',
+                    attributes: ['id_tipe_pertanyaan', 'nama_jenis', 'kode_jenis'],
+                    include: [{
+                        model: db.Tipe_opsi_jawaban,
+                        attributes: ['id_tipe_opsi', 'nama_tipe']
+                    }]
                 }
             ]
         });
@@ -281,19 +297,238 @@ const findf01Opd = async (req, res) => {
 
         const formattedData = pertanyaanList.map(pertanyaan => {
             const pertanyaanObj = pertanyaan.toJSON();
+            let isMultipleChoice = false;
             
-            const jawabanForPertanyaan = jawabanList.find(
-                jawaban => jawaban.id_pertanyaan === pertanyaan.id_pertanyaan
-            );
+            if (pertanyaanObj.TipePertanyaan) {
+                const tipePertanyaan = pertanyaanObj.TipePertanyaan;
+                
+                isMultipleChoice = 
+                    tipePertanyaan.kode_jenis === 'multiple_choice' || 
+                    tipePertanyaan.kode_jenis === 'multi_choice_other';
+                
+                if (!isMultipleChoice && tipePertanyaan.Tipe_opsi_jawaban) {
+                    isMultipleChoice = tipePertanyaan.Tipe_opsi_jawaban.nama_tipe === 'multi_select';
+                }
+            }
+            delete pertanyaanObj.TipePertanyaan;
+            
+            if (isMultipleChoice) {
+                const jawabanForPertanyaan = jawabanList.filter(
+                    jawaban => jawaban.id_pertanyaan === pertanyaan.id_pertanyaan
+                );
+                pertanyaanObj.jawaban = jawabanForPertanyaan.length > 0 
+                    ? jawabanForPertanyaan.map(jawaban => ({
+                        id_jawaban: jawaban.id_jawaban,
+                        jawaban_text: jawaban.jawaban_text,
+                        opsi_jawaban: jawaban.opsi_jawaban ? {
+                            id_opsi_jawaban: jawaban.opsi_jawaban.id_opsi_jawaban,
+                            teks_opsi: jawaban.opsi_jawaban.teks_opsi
+                        } : null
+                    }))
+                    : null;
+            } else {
+                const jawabanForPertanyaan = jawabanList.find(
+                    jawaban => jawaban.id_pertanyaan === pertanyaan.id_pertanyaan
+                );
+                pertanyaanObj.jawaban = jawabanForPertanyaan ? {
+                    id_jawaban: jawabanForPertanyaan.id_jawaban,
+                    jawaban_text: jawabanForPertanyaan.jawaban_text,
+                    opsi_jawaban: jawabanForPertanyaan.opsi_jawaban ? {
+                        id_opsi_jawaban: jawabanForPertanyaan.opsi_jawaban.id_opsi_jawaban,
+                        teks_opsi: jawabanForPertanyaan.opsi_jawaban.teks_opsi
+                    } : null
+                } : null;
+            }
+            
+            return pertanyaanObj;
+        });
 
-            pertanyaanObj.jawaban = jawabanForPertanyaan ? {
-                id_jawaban: jawabanForPertanyaan.id_jawaban,
-                jawaban_text: jawabanForPertanyaan.jawaban_text,
-                opsi_jawaban: jawabanForPertanyaan.opsi_jawaban ? {
-                    id_opsi_jawaban: jawabanForPertanyaan.opsi_jawaban.id_opsi_jawaban,
-                    teks_opsi: jawabanForPertanyaan.opsi_jawaban.teks_opsi
-                } : null
-            } : null;
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data berhasil ditemukan', 
+            data: {
+                id_pengisian_f01: findF01.id_pengisian_f01,
+                pertanyaan: formattedData,
+                bukti_dukung: formattedBuktiDukung
+            }
+        });
+    } catch (error) {
+        console.error('Error in findf01Opd:', error);
+        
+        if (error instanceof ValidationError) {
+            return res.status(400).json({
+                success: false,
+                status: 400,
+                message: error.message
+            });
+        } else if (error instanceof NotFoundError) {
+            return res.status(404).json({
+                success: false,
+                status: 404,
+                message: error.message
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                status: 500,
+                message: 'Kesalahan Server Internal'
+            });
+        }
+    }
+};
+
+const findf01OpdV2 = async (req, res) => {
+    try {
+        const {id_opd} = req.params
+        const { id_indikator } = req.params;
+
+        const findIndikator = await db.Indikator.findByPk(id_indikator);
+        if (!findIndikator) {
+            throw new ValidationError('Data indikator tidak ditemukan');
+        }
+
+        const currentYear = new Date().getFullYear();
+        const findPeriode = await db.Periode_penilaian.findOne({
+            where: {
+                tahun_periode: currentYear
+            }
+        });
+        if (!findPeriode) {
+            throw new ValidationError('Data periode penilaian tidak ditemukan');
+        }
+
+        const findF01 = await db.Pengisian_f01.findOne({
+            where: {
+                id_opd: id_opd,
+                id_periode_penilaian: findPeriode.id_periode_penilaian,
+            },
+            attributes: ['id_pengisian_f01']
+        });
+
+        if (!findF01) {
+            throw new ValidationError('Data penilaian F-01 tidak ditemukan');
+        }
+
+        const pertanyaanList = await db.Pertanyaan.findAll({
+            where: {
+                indikator_id_indikator: id_indikator
+            },
+            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+            separate: true,
+            order: [['urutan', 'ASC']],
+            include: [
+                {
+                    model: db.Opsi_jawaban,
+                    as: 'OpsiJawabans',
+                    attributes: ['id_opsi_jawaban', 'teks_opsi', 'urutan', 'memiliki_isian_lainnya'],
+                    separate: true,
+                    order: [['urutan', 'ASC']]
+                },
+                {
+                    model: db.Tipe_pertanyaan,
+                    foreignKey: 'tipe_pertanyaan_id_tipe_pertanyaan', 
+                    as: 'TipePertanyaan',
+                    attributes: ['id_tipe_pertanyaan', 'nama_jenis', 'kode_jenis'],
+                    include: [{
+                        model: db.Tipe_opsi_jawaban,
+                        attributes: ['id_tipe_opsi', 'nama_tipe']
+                    }]
+                }
+            ]
+        });
+
+        const jawabanList = await db.Jawaban.findAll({
+            where: {
+                id_pengisian_f01: findF01.id_pengisian_f01,
+                '$pertanyaan.indikator_id_indikator$': id_indikator
+            },
+            attributes: ['id_jawaban', 'id_pertanyaan', 'jawaban_text', 'id_opsi_jawaban'],
+            include: [
+                {
+                    model: db.Pertanyaan,
+                    as: 'pertanyaan',
+                    attributes: ['id_pertanyaan'],
+                    where: {
+                        indikator_id_indikator: id_indikator
+                    }
+                },
+                {
+                    model: db.Opsi_jawaban,
+                    as: 'opsi_jawaban',
+                    attributes: ['id_opsi_jawaban', 'teks_opsi']
+                }
+            ]
+        });
+
+        const buktiDukungList = await db.Bukti_dukung_upload.findAll({
+            where: {
+                id_pengisian_f01: findF01.id_pengisian_f01,
+                id_indikator: id_indikator
+            },
+            include: [
+                {
+                    model: db.Bukti_dukung,
+                    as: 'bukti_dukung',
+                    attributes: ['nama_bukti_dukung']
+                }
+            ],
+            attributes: ['id_bukti_dukung', 'nama_file']
+        });
+
+        const formattedBuktiDukung = buktiDukungList.map(bukti => {
+            const buktiObj = bukti.toJSON();
+            return {
+                id_bukti_dukung: buktiObj.id_bukti_dukung,
+                nama_file: buktiObj.nama_file,
+                nama_bukti_dukung: buktiObj.bukti_dukung ? buktiObj.bukti_dukung.nama_bukti_dukung : null,
+            };
+        });
+
+        const formattedData = pertanyaanList.map(pertanyaan => {
+            const pertanyaanObj = pertanyaan.toJSON();
+            let isMultipleChoice = false;
+            
+            if (pertanyaanObj.TipePertanyaan) {
+                const tipePertanyaan = pertanyaanObj.TipePertanyaan;
+                
+                isMultipleChoice = 
+                    tipePertanyaan.kode_jenis === 'multiple_choice' || 
+                    tipePertanyaan.kode_jenis === 'multi_choice_other';
+                
+                if (!isMultipleChoice && tipePertanyaan.Tipe_opsi_jawaban) {
+                    isMultipleChoice = tipePertanyaan.Tipe_opsi_jawaban.nama_tipe === 'multi_select';
+                }
+            }
+            delete pertanyaanObj.TipePertanyaan;
+            
+            if (isMultipleChoice) {
+                const jawabanForPertanyaan = jawabanList.filter(
+                    jawaban => jawaban.id_pertanyaan === pertanyaan.id_pertanyaan
+                );
+                pertanyaanObj.jawaban = jawabanForPertanyaan.length > 0 
+                    ? jawabanForPertanyaan.map(jawaban => ({
+                        id_jawaban: jawaban.id_jawaban,
+                        jawaban_text: jawaban.jawaban_text,
+                        opsi_jawaban: jawaban.opsi_jawaban ? {
+                            id_opsi_jawaban: jawaban.opsi_jawaban.id_opsi_jawaban,
+                            teks_opsi: jawaban.opsi_jawaban.teks_opsi
+                        } : null
+                    }))
+                    : null;
+            } else {
+                const jawabanForPertanyaan = jawabanList.find(
+                    jawaban => jawaban.id_pertanyaan === pertanyaan.id_pertanyaan
+                );
+                pertanyaanObj.jawaban = jawabanForPertanyaan ? {
+                    id_jawaban: jawabanForPertanyaan.id_jawaban,
+                    jawaban_text: jawabanForPertanyaan.jawaban_text,
+                    opsi_jawaban: jawabanForPertanyaan.opsi_jawaban ? {
+                        id_opsi_jawaban: jawabanForPertanyaan.opsi_jawaban.id_opsi_jawaban,
+                        teks_opsi: jawabanForPertanyaan.opsi_jawaban.teks_opsi
+                    } : null
+                } : null;
+            }
             
             return pertanyaanObj;
         });
@@ -399,6 +634,11 @@ const submitF02 = async (req, res) => {
         console.log(`Jumlah indikator yang akan diproses: ${indicator_values.length}`);
 
         const aspekValues = {};
+        const detailedCalculation = {
+            indicators: [],
+            aspects: {},
+            finalCalculation: {}
+        };
 
         for (const item of indicator_values) {
             const { id_indikator, id_skala } = item;
@@ -430,6 +670,16 @@ const submitF02 = async (req, res) => {
     
             const bobotDecimal = parseFloat(indikator.bobot_indikator || 0) / 100;
             const nilai_diperoleh = parseFloat(bobotDecimal * (skalaIndikator.nilai_skala || 0));
+            detailedCalculation.indicators.push({
+                id: id_indikator,
+                name: indikator.nama_indikator || `Indikator ${id_indikator}`,
+                bobot: indikator.bobot_indikator,
+                bobotDecimal: bobotDecimal,
+                skala: skalaIndikator.nilai_skala,
+                nilai: nilai_diperoleh,
+                aspectId: indikator.AspekPenilaian?.id_aspek_penilaian,
+                aspectName: indikator.AspekPenilaian?.nama_aspek
+            });
 
             if (nilai_diperoleh === null || nilai_diperoleh === undefined) {
                 throw new ValidationError('Perhitungan nilai menghasilkan nilai null');
@@ -587,6 +837,12 @@ const submitF02 = async (req, res) => {
                 }, { transaction });
                 console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
             }
+            detailedCalculation.aspects[id_aspek_penilaian] = {
+                id: id_aspek_penilaian,
+                name: aspek.nama_aspek,
+                total: total_nilai_indikator,
+                bobot: aspek.bobot_aspek
+            };
         }
 
         for (const aspek of allAspek) {
@@ -620,7 +876,6 @@ const submitF02 = async (req, res) => {
                 });
                 console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil diupdate: ${total_nilai_indikator}`);
             } else {
-                // Buat nilai aspek baru
                 await db.Nilai_aspek.create({
                     id_pengisian_f02: pengisianF02.id_pengisian_f02,
                     id_aspek_penilaian: id_aspek_penilaian,
@@ -630,17 +885,25 @@ const submitF02 = async (req, res) => {
                 }, { transaction });
                 console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
             }
+            if (!detailedCalculation.aspects[id_aspek_penilaian]) {
+                detailedCalculation.aspects[id_aspek_penilaian] = {
+                    id: id_aspek_penilaian,
+                    name: aspek.nama_aspek,
+                    total: total_nilai_indikator,
+                    bobot: aspek.bobot_aspek,
+                    isSubAspect: true,
+                    parentId: aspek.parent_id_aspek_penilaian
+                };
+            }
         }
    
         let totalNilaiAkhir = 0;
-        
-        // Perhitungan nilai akhir dari induk aspek
+        detailedCalculation.finalCalculation.aspectWeightedValues = [];
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
             let total_nilai_indikator = 0;
             
             if (konsolidasiSubAspek[id_aspek_penilaian]) {
-
                 total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
                 console.log(`Aspek induk ${id_aspek_penilaian} menggunakan nilai terkonsolidasi dari sub aspek: ${total_nilai_indikator}`);
             } else if (aspekValues[id_aspek_penilaian]) {
@@ -661,13 +924,73 @@ const submitF02 = async (req, res) => {
             console.log('Tipe data nilai:', typeof total_nilai_indikator);
             console.log('Tipe data bobot:', typeof bobotAspekDecimal);
             console.log('Tipe data hasil:', typeof nilaiAspekTertimbang);
+            detailedCalculation.finalCalculation.aspectWeightedValues.push({
+                id: id_aspek_penilaian,
+                name: aspek.nama_aspek,
+                total: total_nilai_indikator,
+                weight: bobot_aspek,
+                weightDecimal: bobotAspekDecimal,
+                weightedValue: nilaiAspekTertimbang
+            });
 
             totalNilaiAkhir += nilaiAspekTertimbang;
         }
+        console.log('\n========= DETAILED CALCULATION BREAKDOWN =========');
+        
+        const indicatorsByAspect = {};
+        for (const indicator of detailedCalculation.indicators) {
+            if (!indicatorsByAspect[indicator.aspectId]) {
+                indicatorsByAspect[indicator.aspectId] = {
+                    name: indicator.aspectName,
+                    indicators: []
+                };
+            }
+            indicatorsByAspect[indicator.aspectId].indicators.push(indicator);
+        }
+
+        console.log('\nINDICATOR CALCULATIONS:');
+        console.log('------------------------');
+        
+        for (const [aspectId, data] of Object.entries(indicatorsByAspect)) {
+            console.log(`\nASPECT ${aspectId}: ${data.name}`);
+            console.log('---------------------------------------------');
+            
+            let index = 1;
+            let aspectTotal = 0;
+            
+            for (const indicator of data.indicators) {
+                console.log(`${index}. Indicator: ${indicator.name}`);
+                console.log(`   Weight: ${indicator.bobot}%, Scale: ${indicator.skala}`);
+                console.log(`   Calculation: ${indicator.skala} × ${indicator.bobotDecimal} = ${indicator.nilai.toFixed(4)}`);
+                aspectTotal += indicator.nilai;
+                index++;
+            }
+            
+            console.log(`TOTAL FOR ASPECT ${aspectId}: ${aspectTotal.toFixed(4)}`);
+        }
+
+        console.log('\nASPECT WEIGHTED CALCULATIONS:');
+        console.log('-----------------------------');
+        
+        for (const aspekWeight of detailedCalculation.finalCalculation.aspectWeightedValues) {
+            console.log(`Aspect ${aspekWeight.id}: ${aspekWeight.name}`);
+            console.log(`  Total: ${aspekWeight.total.toFixed(4)} × Weight: ${aspekWeight.weight}% = ${aspekWeight.weightedValue.toFixed(4)}`);
+        }
+
+        detailedCalculation.finalCalculation.total = totalNilaiAkhir;
+        detailedCalculation.finalCalculation.finalValue = totalNilaiAkhir * 0.75;
+        
+        console.log('\nFINAL CALCULATION:');
+        console.log('------------------');
+        console.log(`Total weighted value: ${totalNilaiAkhir.toFixed(4)}`);
+        console.log(`Apply 75% multiplier: ${totalNilaiAkhir.toFixed(4)} × 0.75 = ${detailedCalculation.finalCalculation.finalValue.toFixed(4)}`);
 
         console.log('Total nilai akhir sebelum konversi:', totalNilaiAkhir);
 
-        totalNilaiAkhir = parseFloat(totalNilaiAkhir.toFixed(2));
+        totalNilaiAkhir = totalNilaiAkhir * 0.75;
+        console.log('Total nilai akhir setelah mengalikan dengan 75%:', totalNilaiAkhir);
+
+        totalNilaiAkhir = parseFloat(totalNilaiAkhir.toFixed(4));
         console.log('Total nilai akhir setelah konversi:', totalNilaiAkhir);
         
         if (totalNilaiAkhir === 0) {
@@ -741,36 +1064,59 @@ const submitF02 = async (req, res) => {
             }
 
             const nilaiRataRata = jumlahEvaluator > 0 ? totalKumulatif / jumlahEvaluator : 0;
-            const nilaiKumulatif = parseFloat(nilaiRataRata.toFixed(2));
+            const nilaiKumulatif = parseFloat(nilaiRataRata.toFixed(4)); // Increased precision to 4 decimal places
             
             console.log(`Total nilai kumulatif: ${totalKumulatif}, Jumlah evaluator: ${jumlahEvaluator}`);
             console.log(`Nilai rata-rata: ${nilaiRataRata}, Nilai kumulatif: ${nilaiKumulatif}`);
             
+            console.log('\nEVALUATOR CALCULATION:');
+            console.log('----------------------');
+            console.log(`Total Evaluators expected: 4`);
+            console.log(`Evaluators who have submitted: ${jumlahEvaluator}`);
+            console.log(`Current calculation method: Average of submitted evaluations (${nilaiKumulatif})`);
+            
+            function determineNewCategory(nilai) {
+                if (nilai >= 0 && nilai <= 0.13) return 'F (Gagal)';
+                if (nilai > 0.13 && nilai <= 0.2) return 'E (Sangat Buruk)';
+                if (nilai > 0.2 && nilai <= 0.27) return 'D (Buruk)';
+                if (nilai > 0.27 && nilai <= 0.33) return 'C- (Cukup dengan Catatan)';
+                if (nilai > 0.33 && nilai <= 0.4) return 'C (Cukup)';
+                if (nilai > 0.4 && nilai <= 0.47) return 'B- (Baik dengan Catatan)';
+                if (nilai > 0.47 && nilai <= 0.53) return 'B (Baik)';
+                if (nilai > 0.53 && nilai <= 0.6) return 'A- (Sangat Baik)';
+                if (nilai > 0.6 && nilai <= 0.67) return 'A (Pelayanan Prima)';
+                return 'UNDEFINED';
+            }
+        
             let kategori = '';
             
-            if (nilaiKumulatif >= 0 && nilaiKumulatif <= 1.00) {
-                kategori = 'F'; // Gagal
-            } else if (nilaiKumulatif >= 1.01 && nilaiKumulatif <= 1.50) {
-                kategori = 'E'; // Sangat Buruk
-            } else if (nilaiKumulatif >= 1.51 && nilaiKumulatif <= 2.00) {
-                kategori = 'D'; // Buruk
-            } else if (nilaiKumulatif >= 2.01 && nilaiKumulatif <= 2.50) {
-                kategori = 'C-'; // Cukup 
-            } else if (nilaiKumulatif >= 2.51 && nilaiKumulatif <= 3.00) {
-                kategori = 'C'; // Cukup
-            } else if (nilaiKumulatif >= 3.01 && nilaiKumulatif <= 3.50) {
-                kategori = 'B-'; // Baik 
-            } else if (nilaiKumulatif >= 3.51 && nilaiKumulatif <= 4.00) {
-                kategori = 'B'; // Baik
-            } else if (nilaiKumulatif >= 4.01 && nilaiKumulatif <= 4.50) {
-                kategori = 'A-'; // Sangat Baik
-            } else if (nilaiKumulatif >= 4.51 && nilaiKumulatif <= 5.00) {
-                kategori = 'A'; // Pelayanan Prima
+            if (nilaiKumulatif >= 0 && nilaiKumulatif <= 0.14) {
+                kategori = 'F'; 
+            } else if (nilaiKumulatif >= 0.141 && nilaiKumulatif <= 0.21) {
+                kategori = 'E'; 
+            } else if (nilaiKumulatif >= 0.211 && nilaiKumulatif <= 0.28) {
+                kategori = 'D'; 
+            } else if (nilaiKumulatif >= 0.281 && nilaiKumulatif <= 0.35) {
+                kategori = 'C-';  
+            } else if (nilaiKumulatif >= 0.351 && nilaiKumulatif <= 0.42) {
+                kategori = 'C'; 
+            } else if (nilaiKumulatif >= 0.421 && nilaiKumulatif <= 0.49) {
+                kategori = 'B-';  
+            } else if (nilaiKumulatif >= 0.491 && nilaiKumulatif <= 0.56) {
+                kategori = 'B'; 
+            } else if (nilaiKumulatif >= 0.561 && nilaiKumulatif <= 0.63) {
+                kategori = 'A-'; 
+            } else if (nilaiKumulatif >= 0.631 && nilaiKumulatif <= 0.71) {
+                kategori = 'A'; 
             } else {
                 kategori = 'UNDEFINED'; 
             }
             
-            console.log(`Kategori untuk nilai ${nilaiKumulatif}: ${kategori}`);
+            const newCategory = determineNewCategory(nilaiKumulatif);
+            
+            console.log(`\nCATEGORY DETERMINATION:`);
+            console.log(`Original scale (0-5): ${nilaiKumulatif} = ${kategori}`);
+            console.log(`New scale (0-0.67): ${nilaiKumulatif} = ${newCategory}`);
             
             const existingNilaiKumulatif = await db.Nilai_akhir_kumulatif.findOne({
                 where: {
@@ -802,6 +1148,7 @@ const submitF02 = async (req, res) => {
             }
             
             console.log(`Nilai kumulatif untuk OPD ${id_opd} pada periode ${findEvaluatorPeriode.periode_penilaian.id_periode_penilaian} berhasil disimpan`);
+            console.log('================================================\n');
             
         } catch (error) {
             console.error('Kesalahan saat menghitung nilai kumulatif:', error);
@@ -815,7 +1162,18 @@ const submitF02 = async (req, res) => {
             message: 'Data penilaian F02 berhasil disimpan',
             data: {
                 id_pengisian_f02: pengisianF02.id_pengisian_f02,
-                total_nilai_akhir: totalNilaiAkhir
+                total_nilai_akhir: totalNilaiAkhir,
+                detailedCalculation: {
+                    byAspect: detailedCalculation.finalCalculation.aspectWeightedValues.map(aspect => ({
+                        id: aspect.id,
+                        name: aspect.name,
+                        total: aspect.total,
+                        bobot: aspect.weight,
+                        nilaiTertimbang: aspect.weightedValue
+                    })),
+                    totalNilai: detailedCalculation.finalCalculation.total,
+                    nilaiAkhir: detailedCalculation.finalCalculation.finalValue
+                }
             }
         });
         
@@ -852,4 +1210,4 @@ const submitF02 = async (req, res) => {
     }
 };
 
-module.exports = {listOpdf02, getQuestF02, findf01Opd, submitF02}
+module.exports = {listOpdf02, getQuestF02, findf01Opd, submitF02, findf01OpdV2}
