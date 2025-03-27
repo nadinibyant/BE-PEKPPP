@@ -86,7 +86,8 @@ const listIzinPenilaian = async (req, res) => {
             }
 
             const tanggal = new Date(item.tanggal_pengajuan);
-            const formattedDate = `${tanggal.getDate().toString().padStart(2, '0')}-${(tanggal.getMonth() + 1).toString().padStart(2, '0')}-${tanggal.getFullYear()}`;
+            // const formattedDate = `${tanggal.getDate().toString().padStart(2, '0')}-${(tanggal.getMonth() + 1).toString().padStart(2, '0')}-${tanggal.getFullYear()}`;
+            const formattedDate = `${tanggal.getFullYear()}-${(tanggal.getMonth() + 1).toString().padStart(2, '0')}-${tanggal.getDate().toString().padStart(2, '0')}`;
 
             return {
                 id: item.id_izin_hasil_penilaian,
@@ -94,7 +95,7 @@ const listIzinPenilaian = async (req, res) => {
                     nama: pemohon,
                     tipe: tipePemohon
                 },
-                periode: item.periode_penilaian ? `Periode ${item.periode_penilaian.tahun_periode}` : 'Periode tidak diketahui',
+                periode: item.periode_penilaian ? `${item.periode_penilaian.tahun_periode}` : '',
                 target_penilaian: targetOpd,
                 tanggal_pengajuan: formattedDate,
                 status: item.status

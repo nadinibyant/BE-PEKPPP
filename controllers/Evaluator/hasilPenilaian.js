@@ -3,27 +3,26 @@ const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where, Sequelize, Model } = require('sequelize');
 
-//list penilaian yang dilakukan by periode
 const calculateKategoriAndZona = (nilaiTotal) => {
     let kategori = '';
     
-    if (nilaiTotal >= 0 && nilaiTotal <= 1.00) {
+    if (nilaiTotal >= 0 && nilaiTotal <= 0.14) {
         kategori = 'F'; 
-    } else if (nilaiTotal >= 1.01 && nilaiTotal <= 1.50) {
-        kategori = 'E';
-    } else if (nilaiTotal >= 1.51 && nilaiTotal <= 2.00) {
-        kategori = 'D';
-    } else if (nilaiTotal >= 2.01 && nilaiTotal <= 2.50) {
-        kategori = 'C-'; 
-    } else if (nilaiTotal >= 2.51 && nilaiTotal <= 3.00) {
+    } else if (nilaiTotal >= 0.141 && nilaiTotal <= 0.21) {
+        kategori = 'E'; 
+    } else if (nilaiTotal >= 0.211 && nilaiTotal <= 0.28) {
+        kategori = 'D'; 
+    } else if (nilaiTotal >= 0.281 && nilaiTotal <= 0.35) {
+        kategori = 'C-';  
+    } else if (nilaiTotal >= 0.351 && nilaiTotal <= 0.42) {
         kategori = 'C'; 
-    } else if (nilaiTotal >= 3.01 && nilaiTotal <= 3.50) {
-        kategori = 'B-'; 
-    } else if (nilaiTotal >= 3.51 && nilaiTotal <= 4.00) {
-        kategori = 'B';
-    } else if (nilaiTotal >= 4.01 && nilaiTotal <= 4.50) {
+    } else if (nilaiTotal >= 0.421 && nilaiTotal <= 0.49) {
+        kategori = 'B-';  
+    } else if (nilaiTotal >= 0.491 && nilaiTotal <= 0.56) {
+        kategori = 'B'; 
+    } else if (nilaiTotal >= 0.561 && nilaiTotal <= 0.63) {
         kategori = 'A-'; 
-    } else if (nilaiTotal >= 4.51 && nilaiTotal <= 5.00) {
+    } else if (nilaiTotal >= 0.631) {
         kategori = 'A'; 
     } else {
         kategori = 'UNDEFINED'; 
@@ -65,7 +64,7 @@ const getPenilaian = async (req, res) => {
         }
 
         const findData = await db.Pengisian_f02.findAll({
-            attributes: ['id_pengisian_f02'],
+            attributes: ['id_pengisian_f02', 'updatedAt'],
             include: [
                 {
                     model: db.Opd,
