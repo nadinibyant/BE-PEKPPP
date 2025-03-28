@@ -5,8 +5,10 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const server = require('./routes/index')
 const cors = require('cors');
-
+const { whatsappClient } = require('./config/whatsaap');
 var app = express();
+const db = require('./models')
+
 
 app.use(logger('dev'));
 app.use(express.json());
@@ -40,6 +42,9 @@ app.use('/', server.hasilPenilaianEval)
 app.use('/', server.hasilPenilaianOpd)
 app.use('/', server.izinHasilPenilaian)
 app.use('/', server.profile)
+
+const cornJob = require('./jobs/cornJob');
+cornJob(db);
 
 app.use(function(req, res, next) {
   next(createError(404));

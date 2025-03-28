@@ -6,7 +6,7 @@ const { ValidationError, NotFoundError } = require('../../utils/error')
 const tambahEvaluator = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
-        const {sumberEvaluator, nama, email, password, id_opd} = req.body;
+        const {sumberEvaluator, nama, email, password, id_opd, no_hp} = req.body;
 
         if (!sumberEvaluator) {
             throw new ValidationError('Silahkan pilih sumber tim penilai/evaluator');
@@ -62,7 +62,8 @@ const tambahEvaluator = async (req, res) => {
 
             await db.Evaluator.create({
                 id_evaluator: addUser.id_user,
-                nama: findOpd.nama_opd
+                nama: findOpd.nama_opd,
+                no_hp: no_hp
             }, {transaction});
 
         } else {
@@ -91,7 +92,8 @@ const tambahEvaluator = async (req, res) => {
 
             await db.Evaluator.create({
                 id_evaluator: addUser.id_user,
-                nama
+                nama,
+                no_hp
             }, {transaction});
         }
 
@@ -146,7 +148,7 @@ const totalEvalutor = async (req,res) => {
 const allEvaluator = async (req, res) => {
     try {
         const findEvaluator = await db.Evaluator.findAll({
-            attributes: ['id_evaluator', 'nama'],
+            attributes: ['id_evaluator', 'nama', 'no_hp'],
             include: [
                 {
                     model: db.User,
@@ -226,7 +228,7 @@ const editEvaluator = async (req, res) => {
     try {
         transaction = await sequelize.transaction();
         const {id_evaluator} = req.params;
-        const {nama, email, password} = req.body;
+        const {nama, email, password, no_hp} = req.body;
 
         const findEvaluator = await db.Evaluator.findByPk(id_evaluator, {
             include: [{
@@ -274,8 +276,16 @@ const editEvaluator = async (req, res) => {
             });
         }
 
+        const evaluatorUpdateData = {};
         if (nama && nama !== findEvaluator.nama) {
-            await db.Evaluator.update({ nama }, {
+            evaluatorUpdateData.nama = nama;
+        }
+        if (no_hp !== undefined) {
+            evaluatorUpdateData.no_hp = no_hp;
+        }
+
+        if (Object.keys(evaluatorUpdateData).length > 0) {
+            await db.Evaluator.update(evaluatorUpdateData, {
                 where: { id_evaluator },
                 transaction
             });

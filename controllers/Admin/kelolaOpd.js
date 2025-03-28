@@ -7,8 +7,8 @@ const { where } = require('sequelize')
 const tambahOpd = async (req,res) => {
     const transaction = await sequelize.transaction()
     try {
-        const {nama, email, password, konfirmasiPass, alamat} = req.body
-        if (!nama || !email || !password || !konfirmasiPass || !alamat) {
+        const {nama, email, password, konfirmasiPass, alamat, no_hp} = req.body
+        if (!nama || !email || !password || !konfirmasiPass || !alamat ||!no_hp) {
             return res.status(400).json({success: false, status:400, message: 'Silahkan lengkapi data akun opd'})
         }
         if (password != konfirmasiPass) {
@@ -45,7 +45,8 @@ const tambahOpd = async (req,res) => {
         await db.Opd.create({
             id_opd: addUser.id_user,
             nama_opd:nama,
-            alamat
+            alamat,
+            no_hp
         })
         return res.status(200).json({success: true, status:200, message: 'Data Opd berhasil ditambahkan'})
     } catch (error) {
@@ -59,7 +60,7 @@ const tambahOpd = async (req,res) => {
 const listOpd = async (req,res) => {
     try {
         const getOpd = await db.Opd.findAll({
-            attributes: ['id_opd', 'nama_opd', 'alamat'],
+            attributes: ['id_opd', 'nama_opd', 'alamat', 'no_hp'],
             order: [['nama_opd', 'ASC']],
             include: [
                 {
@@ -81,7 +82,7 @@ const editOpd = async (req,res) => {
     const transaction = await sequelize.transaction()
     try {
         const {id_user} = req.params
-        const {nama, email, password, konfirmasiPass, alamat} = req.body
+        const {nama, email, password, konfirmasiPass, alamat, no_hp} = req.body
         const findUser = await db.User.findByPk(id_user, {
             include: [
                 {
@@ -143,7 +144,8 @@ const editOpd = async (req,res) => {
 
         await db.Opd.update({
             nama_opd: nama || findUser.opd.nama_opd,
-            alamat: alamat || findUser.opd.alamat
+            alamat: alamat || findUser.opd.alamat,
+            no_hp: no_hp || findUser.opd.no_hp
         }, {
             where:{id_opd:id_user},
             transaction
@@ -191,7 +193,7 @@ const detailOpd = async (req,res) => {
                     attributes: ['id_user', 'email']
                 }
             ],
-            attributes: ['id_opd', 'nama_opd']
+            attributes: ['id_opd', 'nama_opd', 'no_hp']
         })
         if (!findOpd) {
             return res.status(400).json({success: false, status:400, message: 'Data opd tidak ditemukan'})

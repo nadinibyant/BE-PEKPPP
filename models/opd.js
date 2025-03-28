@@ -66,6 +66,10 @@ module.exports = (sequelize, DataTypes) => {
     alamat: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    no_hp: {
+      type: DataTypes.STRING(15),
+      allowNull: true
     }
   }, {
     sequelize,

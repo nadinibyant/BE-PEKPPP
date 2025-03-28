@@ -2,6 +2,7 @@ const {ValidationError, NotFoundError} = require('../../utils/error')
 const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where, Sequelize } = require('sequelize');
+const { notifPeriodToAllOpd, notifPeriodToAllEvaluator } = require('../../services/notification');
 
 //tambah periode 
 const tambahPeriode = async (req, res) => {
@@ -406,12 +407,23 @@ const hapusPeriode = async (req, res) => {
 
 //aktif/non aktif periode
 const updateStatus = async (req,res) => {
-    let transaction
+    let transaction;
+    let notificationOPDResult = null;
+    let notificationEvaluatorResults = null
+    
     try {
-        const {id_periode_penilaian} = req.params
+        const {id_periode_penilaian} = req.params;
         transaction = await sequelize.transaction();
         
-        const findPeriode = await db.Periode_penilaian.findByPk(id_periode_penilaian, { transaction });
+        const findPeriode = await db.Periode_penilaian.findByPk(id_periode_penilaian, {
+            include: [
+                {
+                    model: db.Evaluator,
+                    as: 'evaluators'
+                }
+            ],
+            transaction
+        });
         
         if (!findPeriode) {
             throw new NotFoundError('Data periode tidak ditemukan');
@@ -423,12 +435,36 @@ const updateStatus = async (req,res) => {
             { status: newStatus },
             { where: { id_periode_penilaian }, transaction }
         );
+        
         await transaction.commit();
+        transaction = null;
+        
+        if (newStatus === 'aktif') {
+            try {
+                notificationOPDResult = await notifPeriodToAllOpd(findPeriode);
+                notificationEvaluatorResults = await notifPeriodToAllEvaluator(findPeriode);
+
+            } catch (notifError) {
+                console.error('Gagal mengirim notifikasi:', notifError);
+                notificationOPDResult = { 
+                    success: false, 
+                    message: 'Periode berhasil diaktifkan tetapi gagal mengirim notifikasi',
+                    error: notifError.message 
+                };
+                notificationEvaluatorResults = { 
+                    success: false, 
+                    message: 'Periode berhasil diaktifkan tetapi gagal mengirim notifikasi',
+                    error: notifError.message 
+                };
+            }
+        }
 
         return res.status(200).json({
             success: true, 
             status: 200, 
-            message: `Status periode penilaian berhasil diubah menjadi ${newStatus}`
+            message: `Status periode penilaian berhasil diubah menjadi ${newStatus}`,
+            notificationOpd: notificationOPDResult,
+            notificationEval: notificationEvaluatorResults
         });
     } catch (error) {
         if (transaction) await transaction.rollback();
@@ -457,6 +493,6 @@ const updateStatus = async (req,res) => {
                 });
         }
     }
-}
+};
 
 module.exports ={tambahPeriode, tampilPeriode, editPeriode, hapusPeriode, updateStatus}
