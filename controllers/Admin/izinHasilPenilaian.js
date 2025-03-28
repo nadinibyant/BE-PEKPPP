@@ -68,7 +68,7 @@ const listIzinPenilaian = async (req, res) => {
                 pemohon = item.opd.nama_opd;
                 tipePemohon = 'opd';
             } else if (item.id_evaluator && item.evaluator) {
-                pemohon = item.evaluator.nama_evaluator;
+                pemohon = item.evaluator.nama;
                 tipePemohon = 'evaluator';
             } else {
                 pemohon = 'Tidak diketahui';

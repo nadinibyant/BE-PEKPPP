@@ -15,7 +15,7 @@ module.exports = (sequelize, DataTypes) => {
         as: 'periode_penilaian'
       });
 
-      Nilai_akhir_kumulatif.hasMany(models.Izin_hasil_penilaian, {
+      Nilai_akhir_kumulatif.hasOne(models.Izin_hasil_penilaian, {
         foreignKey: 'id_nilai_kumulatif',
         as: 'izin_hasil_penilaians'
       });

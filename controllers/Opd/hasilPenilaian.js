@@ -27,6 +27,12 @@ const getPenilaianOpdPeriode = async (req,res) => {
                             tahun_periode
                         },
                         attributes: ['id_periode_penilaian','tahun_periode']
+                    },
+                    {
+                        model: db.Izin_hasil_penilaian,
+                        as: 'izin_hasil_penilaians',
+                        attributes: ['id_izin_hasil_penilaian', 'id_nilai_kumulatif', 'status', 'updatedAt']
+
                     }
                 ],
                 attributes: ['id_nilai_kumulatif', 'total_kumulatif', 'kategori'],
@@ -128,6 +134,11 @@ const reqAksesOpd = async (req, res) => {
         const id_opd = req.user.id_user
         const {id_nilai_kumulatif, id_periode_penilaian} = req.query;
 
+        const findNilaiKumulatif = await db.Nilai_akhir_kumulatif.findByPk(id_nilai_kumulatif, {transaction})
+        if (!findNilaiKumulatif) {
+            throw new ValidationError('Data nilai akhir kumulatif tidak ditemukan')
+        }
+
         if (!id_nilai_kumulatif) {
             throw new ValidationError('Id nilai kumulatif belum tersedia');
         }
@@ -136,35 +147,59 @@ const reqAksesOpd = async (req, res) => {
             throw new ValidationError('Id periode penilaian belum tersedia');
         }
 
+        const findPeriode = await db.Periode_penilaian.findByPk(id_periode_penilaian, {transaction})
+        if (!findPeriode) {
+            throw new ValidationError('Data periode penilaian tidak ditemukan')
+        }
+
         transaction = await sequelize.transaction();
 
         const findIzin = await db.Izin_hasil_penilaian.findOne({
             where: {
                 id_nilai_kumulatif,
-                status: 'Menunggu Persetujuan'
+                // status: 'Menunggu Persetujuan'
             },
             transaction
         });
 
-        if (findIzin) {
-            throw new ValidationError('Perizinan penilaian tersebut sudah diajukan');
+        if (!findIzin) {
+            await db.Izin_hasil_penilaian.create({
+                id_opd,
+                id_periode_penilaian,
+                tanggal_pengajuan: new Date(), 
+                id_nilai_kumulatif,
+                status: 'Menunggu Persetujuan' 
+            }, { transaction });
+    
+            await transaction.commit();
+            
+            return res.status(200).json({
+                success: true, 
+                status: 200, 
+                message: 'Perizinan penilaian berhasil diajukan'
+            });
+        } else {
+            if (findIzin.status == 'Menunggu Persetujuan') {
+                throw new ValidationError('Perizinan penilaian tersebut sudah diajukan')
+            } else {
+                await db.Izin_hasil_penilaian.update({
+                    status: 'Menunggu Persetujuan'
+                }, {
+                    where: {
+                        id_nilai_kumulatif
+                    },
+                    transaction
+                })
+
+                await transaction.commit();
+            
+                return res.status(200).json({
+                    success: true, 
+                    status: 200, 
+                    message: 'Perizinan penilaian berhasil diajukan'
+                });
+            }
         }
-
-        await db.Izin_hasil_penilaian.create({
-            id_opd,
-            id_periode_penilaian,
-            tanggal_pengajuan: new Date(), 
-            id_nilai_kumulatif,
-            status: 'Menunggu Persetujuan' 
-        }, { transaction });
-
-        await transaction.commit();
-        
-        return res.status(200).json({
-            success: true, 
-            status: 200, 
-            message: 'Perizinan penilaian berhasil diajukan'
-        });
     } catch (error) {
         console.error('Error in reqAkses:', error);
 
@@ -192,7 +227,5 @@ const reqAksesOpd = async (req, res) => {
         }
     }
 };
-
-//export
 
 module.exports = {getPenilaianOpdPeriode, reqAksesOpd}

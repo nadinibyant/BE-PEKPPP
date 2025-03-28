@@ -148,7 +148,7 @@ const loginAdmin = async (req,res) => {
 // logout
 const logoutAdmin = async (req,res) => {
     try {
-        const id_user = req.user.id_user
+        const id_user = req.user.id_admin
         const authHeader = req.get('Authorization')
         const authToken = authHeader.split(' ')[1]
         const isAdmin = await db.Admin.findOne({

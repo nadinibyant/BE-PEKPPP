@@ -40,7 +40,7 @@ module.exports = (sequelize, DataTypes) => {
         onUpdate: 'CASCADE'
       });
 
-      Pengisian_f02.hasMany(models.Izin_hasil_penilaian, {
+      Pengisian_f02.hasOne(models.Izin_hasil_penilaian, {
         foreignKey: 'id_pengisian_f02',
         as: 'izin_hasil_penilaians',
         onDelete: 'CASCADE',

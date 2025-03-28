@@ -67,28 +67,34 @@ const updateProfile = async (req, res) => {
                 throw new NotFoundError('Data OPD tidak ditemukan');
             }
 
-            const findNama = await db.Opd.findOne({
-                where: {
-                    nama_opd: nama,
-                    id_opd: { [db.Sequelize.Op.ne]: id_opd }
-                },
-                transaction
-            });
-
-            if (findNama) {
-                throw new ValidationError('Nama sudah digunakan');
+            const currentOpd = await db.Opd.findByPk(id_opd, { transaction });
+            if (nama !== currentOpd.nama_opd) {
+                const findNama = await db.Opd.findOne({
+                    where: {
+                        nama_opd: nama,
+                        id_opd: { [db.Sequelize.Op.ne]: id_opd }
+                    },
+                    transaction
+                });
+            
+                if (findNama) {
+                    throw new ValidationError('Nama sudah digunakan');
+                }
             }
 
-            const findEmail = await db.User.findOne({
-                where: {
-                    email,
-                    id_user: { [db.Sequelize.Op.ne]: id_opd }
-                },
-                transaction
-            });
-
-            if (findEmail) {
-                throw new ValidationError('Email sudah digunakan');
+            const currentUser = await db.User.findByPk(id_opd, { transaction });
+            if (email !== currentUser.email) {
+                const findEmail = await db.User.findOne({
+                    where: {
+                        email,
+                        id_user: { [db.Sequelize.Op.ne]: id_opd } 
+                    },
+                    transaction
+                });
+            
+                if (findEmail) {
+                    throw new ValidationError('Email sudah digunakan');
+                }
             }
 
             await db.User.update(
@@ -112,28 +118,34 @@ const updateProfile = async (req, res) => {
                 throw new NotFoundError('Data evaluator tidak ditemukan');
             }
 
-            const findNama = await db.Evaluator.findOne({
-                where: {
-                    nama,
-                    id_evaluator: { [db.Sequelize.Op.ne]: id_evaluator }
-                },
-                transaction
-            });
-
-            if (findNama) {
-                throw new ValidationError('Nama sudah digunakan');
+            const currentEvaluator = await db.Evaluator.findByPk(id_evaluator, { transaction });
+            if (nama !== currentEvaluator.nama) {
+                const findNama = await db.Evaluator.findOne({
+                    where: {
+                        nama,
+                        id_evaluator: { [db.Sequelize.Op.ne]: id_evaluator }
+                    },
+                    transaction
+                });
+            
+                if (findNama) {
+                    throw new ValidationError('Nama sudah digunakan');
+                }
             }
 
-            const findEmail = await db.User.findOne({
-                where: {
-                    email,
-                    id_user: { [db.Sequelize.Op.ne]: id_evaluator } 
-                },
-                transaction
-            });
-
-            if (findEmail) {
-                throw new ValidationError('Email sudah digunakan');
+            const currentUser = await db.User.findByPk(id_evaluator, { transaction });
+            if (email !== currentUser.email) {
+                const findEmail = await db.User.findOne({
+                    where: {
+                        email,
+                        id_user: { [db.Sequelize.Op.ne]: id_evaluator } 
+                    },
+                    transaction
+                });
+            
+                if (findEmail) {
+                    throw new ValidationError('Email sudah digunakan');
+                }
             }
 
             await db.User.update(

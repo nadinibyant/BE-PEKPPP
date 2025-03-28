@@ -191,30 +191,50 @@ const reqAkses = async (req, res) => {
         const findIzin = await db.Izin_hasil_penilaian.findOne({
             where: {
                 id_pengisian_f02,
-                status: 'Menunggu Persetujuan'
+                // status: 'Menunggu Persetujuan'
             },
             transaction
         });
 
-        if (findIzin) {
-            throw new ValidationError('Perizinan penilaian tersebut sudah diajukan');
-        }
 
-        await db.Izin_hasil_penilaian.create({
-            id_evaluator,
-            id_periode_penilaian,
-            tanggal_pengajuan: new Date(), 
-            id_pengisian_f02,
-            status: 'Menunggu Persetujuan' 
-        }, { transaction });
+        if (!findIzin) {
+            await db.Izin_hasil_penilaian.create({
+                id_evaluator,
+                id_periode_penilaian,
+                tanggal_pengajuan: new Date(), 
+                id_pengisian_f02,
+                status: 'Menunggu Persetujuan' 
+            }, { transaction });
 
-        await transaction.commit();
+            await transaction.commit();
         
-        return res.status(200).json({
-            success: true, 
-            status: 200, 
-            message: 'Perizinan penilaian berhasil diajukan'
-        });
+            return res.status(200).json({
+                success: true, 
+                status: 200, 
+                message: 'Perizinan penilaian berhasil diajukan'
+            });
+        } else {
+            if (findIzin.status == 'Menunggu Persetujuan') {
+                throw new ValidationError('Perizinan penilaian tersebut sudah diajukan');
+            } else {
+                await db.Izin_hasil_penilaian.update({
+                    status: 'Menunggu Persetujuan'
+                }, {
+                    where:{
+                        id_pengisian_f02
+                    },
+                    transaction
+                })
+                await transaction.commit();
+            
+                return res.status(200).json({
+                    success: true, 
+                    status: 200, 
+                    message: 'Perizinan penilaian berhasil diajukan'
+                });
+            } 
+        }
+    
     } catch (error) {
         console.error('Error in reqAkses:', error);
 
