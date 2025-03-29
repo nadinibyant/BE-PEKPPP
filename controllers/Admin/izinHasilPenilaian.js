@@ -2,6 +2,7 @@ const {ValidationError, NotFoundError} = require('../../utils/error')
 const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where, Sequelize } = require('sequelize');
+const { notifIzinDecOpd, notifIzinAccOpd, notifIzinAllAcc } = require('../../services/notification');
 
 //list semua izin
 const listIzinPenilaian = async (req, res) => {
@@ -164,10 +165,12 @@ const accIzinPenilaian = async (req, res) => {
             });
             
             await transaction.commit();
+            const notificationResults = await notifIzinAccOpd(id_izin_hasil_penilaian)
             return res.status(200).json({
                 success: true, 
                 status: 200, 
-                message: 'Hasil penilaian berhasil disetujui'
+                message: 'Hasil penilaian berhasil disetujui',
+                notifikasi: notificationResults.message
             });
         } else if (is_bulk_approve === 'true') {
             const pendingCount = await db.Izin_hasil_penilaian.count({
@@ -191,13 +194,15 @@ const accIzinPenilaian = async (req, res) => {
             });
             
             await transaction.commit();
+            const notificationResults = await notifIzinAllAcc()
             return res.status(200).json({
                 success: true, 
                 status: 200, 
                 message: `${updateResult[0]} hasil penilaian berhasil disetujui semuanya`,
                 data: {
                     approved_count: updateResult[0]
-                }
+                },
+                notifikasi: notificationResults
             });
         } else {
             throw new ValidationError('Parameter tidak lengkap. Sediakan id_izin_hasil_penilaian untuk persetujuan tunggal atau is_bulk_approve=true untuk persetujuan semuanya');
@@ -274,6 +279,8 @@ const declineIzin = async (req, res) => {
             throw new ValidationError('Gagal mengupdate status izin, mungkin sudah diproses oleh pengguna lain');
         }
         await transaction.commit();
+
+        const notificationResults = await notifIzinDecOpd(id_izin_hasil_penilaian)
         
         return res.status(200).json({
             success: true, 
@@ -283,7 +290,8 @@ const declineIzin = async (req, res) => {
                 id_izin_hasil_penilaian,
                 status: 'Ditolak',
                 tanggal_penolakan: new Date()
-            }
+            },
+            notifikasi: notificationResults.message
         });
     } catch (error) {
         if (transaction) await transaction.rollback();

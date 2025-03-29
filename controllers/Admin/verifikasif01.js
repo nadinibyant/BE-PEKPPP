@@ -2,6 +2,7 @@ const {ValidationError, NotFoundError} = require('../../utils/error')
 const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where, Sequelize } = require('sequelize');
+const { notifDecF01, notifAccF01, notifAllAccF01 } = require('../../services/notification');
 
 const getDataVerifikasi = async (req, res) => {
     try {
@@ -71,8 +72,6 @@ const getDataVerifikasi = async (req, res) => {
 const detailVerifikasi = async (req, res) => {
     try {
         const { id_pengisian_f01 } = req.params;
-        
-        // Fetch raw data with the same includes as before
         const findPengisian = await db.Pengisian_f01.findByPk(id_pengisian_f01, {
             include: [
                 {
@@ -97,9 +96,8 @@ const detailVerifikasi = async (req, res) => {
                                     as: 'Indikator',
                                     attributes: ['id_indikator', 'nama_indikator', 'kode_indikator', 'urutan'],
                                     seperate: true,
-                                    order: [['urutan', 'ASC']] // Add explicit ordering by urutan
+                                    order: [['urutan', 'ASC']] 
                                 },
-                                // Add TipePertanyaan to determine multiple choice
                                 {
                                     model: db.Tipe_pertanyaan,
                                     foreignKey: 'tipe_pertanyaan_id_tipe_pertanyaan', 
@@ -133,7 +131,7 @@ const detailVerifikasi = async (req, res) => {
                             model: db.Indikator,
                             as: 'indikator',
                             attributes: ['id_indikator', 'nama_indikator', 'kode_indikator', 'urutan'],
-                            order: [['urutan', 'ASC']] // Add explicit ordering
+                            order: [['urutan', 'ASC']] 
                         }
                     ]
                 }
@@ -144,8 +142,6 @@ const detailVerifikasi = async (req, res) => {
         if (!findPengisian) {
             throw new NotFoundError('Data pengisian f01 tidak ditemukan');
         }
-
-        // Group jawaban by pertanyaan
         const jawabanByPertanyaan = new Map();
         findPengisian.jawabans.forEach(jawaban => {
             const pertanyaanId = jawaban.id_pertanyaan;
@@ -156,8 +152,6 @@ const detailVerifikasi = async (req, res) => {
         });
 
         const indikatorMap = new Map();
-   
-        // Process each pertanyaan and its jawaban
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan && jawaban.pertanyaan.Indikator) {
                 const indikator = jawaban.pertanyaan.Indikator;
@@ -168,8 +162,7 @@ const detailVerifikasi = async (req, res) => {
                         id_indikator: indikatorId,
                         nama_indikator: indikator.nama_indikator,
                         kode_indikator: indikator.kode_indikator,
-                        urutan: indikator.urutan, // Store urutan for sorting
-                        pertanyaan: {},
+                        urutan: indikator.urutan, 
                         bukti_dukung: []
                     });
                 }
@@ -186,7 +179,7 @@ const detailVerifikasi = async (req, res) => {
                         id_indikator: indikatorId,
                         nama_indikator: bukti.indikator.nama_indikator,
                         kode_indikator: bukti.indikator.kode_indikator,
-                        urutan: bukti.indikator.urutan, // Store urutan for sorting
+                        urutan: bukti.indikator.urutan, 
                         pertanyaan: {},
                         bukti_dukung: []
                     });
@@ -203,26 +196,19 @@ const detailVerifikasi = async (req, res) => {
                 });
             }
         });
-        
-        // Process pertanyaan and determine multiple choice
         const pertanyaanMap = new Map();
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan) {
                 const pertanyaan = jawaban.pertanyaan;
                 
                 if (!pertanyaanMap.has(pertanyaan.id_pertanyaan)) {
-                    // Check if pertanyaan is multiple choice
                     let isMultipleChoice = false;
                     
                     if (pertanyaan.TipePertanyaan) {
                         const tipePertanyaan = pertanyaan.TipePertanyaan;
-                        
-                        // Check based on kode_jenis
                         isMultipleChoice = 
                             tipePertanyaan.kode_jenis === 'multiple_choice' || 
                             tipePertanyaan.kode_jenis === 'multi_choice_other';
-                        
-                        // If not detected yet, check from Tipe_opsi_jawaban
                         if (!isMultipleChoice && tipePertanyaan.Tipe_opsi_jawaban) {
                             isMultipleChoice = tipePertanyaan.Tipe_opsi_jawaban.nama_tipe === 'multi_select';
                         }
@@ -243,8 +229,6 @@ const detailVerifikasi = async (req, res) => {
                 }
             }
         });
-    
-        // Process jawaban based on whether pertanyaan is multiple choice or not
         findPengisian.jawabans.forEach(jawaban => {
             if (jawaban.pertanyaan) {
                 const pertanyaanId = jawaban.pertanyaan.id_pertanyaan;
@@ -263,17 +247,13 @@ const detailVerifikasi = async (req, res) => {
                     };
                     
                     if (pertanyaanData.isMultipleChoice) {
-                        // For multiple choice, add to array
                         pertanyaanData.jawaban.push(jawabanObj);
                     } else {
-                        // For single choice, set directly
                         pertanyaanData.jawaban = jawabanObj;
                     }
                 }
             }
         });
-
-        // Connect pertanyaan to indikator
         pertanyaanMap.forEach((pertanyaan, id) => {
             if (pertanyaan.indikator_id && indikatorMap.has(pertanyaan.indikator_id)) {
                 const indikatorObj = indikatorMap.get(pertanyaan.indikator_id);
@@ -282,35 +262,22 @@ const detailVerifikasi = async (req, res) => {
                 }
             }
         });
-    
-        // Handle child pertanyaan
         pertanyaanMap.forEach((pertanyaan) => {
             if (pertanyaan.pertanyaan_id_pertanyaan) {
                 const parentId = pertanyaan.pertanyaan_id_pertanyaan;
                 if (pertanyaanMap.has(parentId)) {
                     pertanyaanMap.get(parentId).child_pertanyaan.push(pertanyaan);
-                    // Remove from the main pertanyaan list (optional)
-                    // Consider if you want to keep the child in both places
                 }
             }
         });
-        
-        // Sort everything
         indikatorMap.forEach(indikator => {
-            // Sort child pertanyaan by urutan
             Object.values(indikator.pertanyaan).forEach(pertanyaan => {
                 pertanyaan.child_pertanyaan.sort((a, b) => a.urutan - b.urutan);
             });
-            
-            // Convert pertanyaan object to array and sort
             indikator.pertanyaan = Object.values(indikator.pertanyaan)
                 .sort((a, b) => a.urutan - b.urutan);
-            
-            // Sort bukti_dukung
             indikator.bukti_dukung.sort((a, b) => a.urutan - b.urutan);
         });
-        
-        // Convert to array and sort by indikator urutan
         const indikatorData = Array.from(indikatorMap.values())
             .sort((a, b) => a.urutan - b.urutan);
 
@@ -354,28 +321,41 @@ const detailVerifikasi = async (req, res) => {
 //setuju
 const accVerify = async (req, res) => {
     let transaction;
+    let notificationResult = null
     try {
         transaction = await sequelize.transaction();
 
         const {id_pengisian_f01} = req.query;
 
         if (!id_pengisian_f01) {
-            await db.Pengisian_f01.update(
+            const updateResult = await db.Pengisian_f01.update(
                 { status_pengisian: 'Disetujui' },
                 { 
-                    where: {}, 
+                    where: { 
+                        status_pengisian: 'Menunggu Verifikasi'
+                    }, 
                     transaction 
                 }
             );
             
             await transaction.commit();
+            notificationResult = await notifAllAccF01()
+            
             return res.status(200).json({
                 success: true,
                 status: 200,
                 message: 'Semua data pengisian F01 berhasil disetujui'
             });
         } else {
-            const existingData = await db.Pengisian_f01.findByPk(id_pengisian_f01, { transaction });
+            const existingData = await db.Pengisian_f01.findByPk(id_pengisian_f01, {
+                include: [
+                    {
+                        model: db.Opd,
+                        as: 'opd',
+                        attributes: ['id_opd']
+                    }
+                ]
+            });
             if (!existingData) {
                 await transaction.rollback();
                 return res.status(404).json({
@@ -394,10 +374,14 @@ const accVerify = async (req, res) => {
             );
             
             await transaction.commit();
+
+            notificationResult = await notifAccF01(existingData.opd.id_opd)
+
             return res.status(200).json({
                 success: true, 
                 status: 200, 
-                message: 'Data pengisian F01 berhasil disetujui'
+                message: 'Data pengisian F01 berhasil disetujui',
+                notifikasi: notificationResult.message
             });
         }
         
@@ -458,7 +442,16 @@ const decVerify = async (req, res) => {
                 message: 'Semua data pengisian F01 berhasil ditolak'
             });
         } else {
-            const existingData = await db.Pengisian_f01.findByPk(id_pengisian_f01, { transaction });
+            const existingData = await db.Pengisian_f01.findByPk(id_pengisian_f01, {
+                include: [
+                    {
+                        model: db.Opd,
+                        as: 'opd',
+                        attributes: ['id_opd']
+                    }
+                ],
+                transaction
+            });
             if (!existingData) {
                 await transaction.rollback();
                 return res.status(404).json({
@@ -477,10 +470,19 @@ const decVerify = async (req, res) => {
             );
             
             await transaction.commit();
+
+            const notificationResult = await notifDecF01(existingData.opd.id_opd);
+
+            console.log(existingData)
+
             return res.status(200).json({
                 success: true, 
                 status: 200, 
-                message: 'Data pengisian F01 berhasil ditolak'
+                message: 'Data pengisian F01 berhasil ditolak',
+                notification: {
+                    success: notificationResult.success,
+                    message: notificationResult.message
+                }
             });
         }
         

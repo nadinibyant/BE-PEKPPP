@@ -1,16 +1,19 @@
 const cron = require('node-cron');
-const { Op } = require('sequelize');
+const { Op, where } = require('sequelize');
 const {  
     notifPeriodeCloseOpd, 
     notifPeriodeCloseEvaluator, 
     notifRemind3Opd,
     notifRemind3Evaluator,
     notifRemind1Opd,
-    notifRemind1Evaluator
+    notifRemind1Evaluator,
+    notifRemindSubmitF01,
+    notifRemindSubmitF02
 } = require('../services/notification');
+const { ValidationError } = require('../utils/error');
 
 module.exports = (db) => {
-    console.log('Inisialisasi cron job pengecekan periode dan pengiriman reminder...');
+    console.log('Inisialisasi cron job...');
     
     // Task tiap 30 detik
     const updateStatusTask = cron.schedule('*/30 * * * * *', async () => {
@@ -165,16 +168,173 @@ module.exports = (db) => {
           console.error('Error saat menjalankan pengecekan reminder H-1:', error);
       }
     });
+
+    // remind subtmi f01 (berjalan setiap hari pukul 09:00)
+    const remindSubmitF01 = cron.schedule('0 9 * * *', async () => {
+      console.log('Menjalankan pengecekan untuk OPD yang belum submit F01...', new Date());
+      try {
+        const tahun = new Date().getFullYear();
+        const findPeriode = await db.Periode_penilaian.findOne({
+          where: {
+            tahun_periode: tahun,
+            status: 'aktif'
+          }
+        });
+    
+        if (!findPeriode) {
+          throw new ValidationError('Data periode tidak ditemukan');
+        }
+   
+        const allOpds = await db.Opd.findAll();
+        
+        const submittedOpds = await db.Pengisian_f01.findAll({
+          where: {
+            id_periode_penilaian: findPeriode.id_periode_penilaian
+          },
+          attributes: ['id_opd']
+        });
+        
+        const submittedOpdIds = submittedOpds.map(item => item.id_opd);
+        
+        const nonSubmittedOpds = allOpds.filter(opd => !submittedOpdIds.includes(opd.id_opd));
+        
+        console.log(`Ditemukan ${nonSubmittedOpds.length} OPD yang belum submit F01`);
+        
+        if (nonSubmittedOpds.length > 0) {
+          const notificationResults = [];
+          
+          for (const opd of nonSubmittedOpds) {
+            try {
+              console.log(`Mengirim reminder submit F01 ke OPD: ${opd.nama_opd}`);
+              
+              const reminderResult = await notifRemindSubmitF01(opd.id_opd);
+              console.log('Hasil reminder submit F01:', reminderResult.message);
+              
+              notificationResults.push({
+                opdId: opd.id_opd,
+                opdNama: opd.nama_opd,
+                success: reminderResult.success,
+                error: reminderResult.error || null
+              });
+              
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (error) {
+              console.error(`Gagal mengirim reminder submit F01 untuk OPD ${opd.nama_opd}:`, error);
+              notificationResults.push({
+                opdId: opd.id_opd,
+                opdNama: opd.nama_opd,
+                success: false,
+                error: error.message || 'Unknown error'
+              });
+            }
+          }
+          
+          const successCount = notificationResults.filter(r => r.success).length;
+          console.log(`Berhasil mengirim reminder ke ${successCount} dari ${nonSubmittedOpds.length} OPD yang belum submit F01`);
+        }
+      } catch (error) {
+        console.error('Gagal reminder submit f01:', error);
+      }
+    });
+
+    // remind subtmi f02 (berjalan setiap hari pukul 09:00)
+    const remindSubmitF02 = cron.schedule('0 9 * * *', async () => {
+      console.log('Menjalankan pengecekan untuk Evaluator yang belum menilai OPD...', new Date());
+      try {
+        const tahun = new Date().getFullYear();
+        const activePeriode = await db.Periode_penilaian.findOne({
+          where: {
+            tahun_periode: tahun,
+            status: 'aktif'
+          },
+          include: [{
+            model: db.Evaluator,
+            as: 'evaluators',
+            attributes: ['id_evaluator', 'nama', 'no_hp']
+          }]
+        });
+    
+        if (!activePeriode) {
+          throw new ValidationError('Data periode aktif tidak ditemukan');
+        }
+    
+        const allOpds = await db.Opd.findAll();
+        
+        const submittedF01s = await db.Pengisian_f01.findAll({
+          where: {
+            id_periode_penilaian: activePeriode.id_periode_penilaian
+          },
+          attributes: ['id_opd']
+        });
+        
+        if (submittedF01s.length === 0) {
+          console.log('Tidak ada OPD yang sudah submit F01, tidak perlu mengirim reminder F02');
+          return;
+        }
+        
+        const submittedOpdIds = submittedF01s.map(item => item.id_opd);
+        const opdsToEvaluate = allOpds.filter(opd => submittedOpdIds.includes(opd.id_opd));
+        
+        for (const evaluator of activePeriode.evaluators) {
+          console.log(`Memeriksa evaluator: ${evaluator.nama}`);
+          
+          const evaluatorPeriode = await db.Evaluator_periode_penilaian.findOne({
+            where: {
+              id_evaluator: evaluator.id_evaluator,
+              id_periode_penilaian: activePeriode.id_periode_penilaian
+            }
+          });
+          
+          if (!evaluatorPeriode) {
+            console.log(`Evaluator ${evaluator.nama} tidak terdaftar dalam periode ini`);
+            continue;
+          }
+          
+          const evaluatedOpds = await db.Pengisian_f02.findAll({
+            where: {
+              id_evaluator_periode_penilaian: evaluatorPeriode.id_evaluator_periode_penilaian
+            },
+            attributes: ['id_opd']
+          });
+          
+          const evaluatedOpdIds = evaluatedOpds.map(item => item.id_opd);
+          
+          const opdsNotEvaluated = opdsToEvaluate.filter(opd => !evaluatedOpdIds.includes(opd.id_opd));
+          
+          if (opdsNotEvaluated.length > 0) {
+            console.log(`Evaluator ${evaluator.nama} belum menilai ${opdsNotEvaluated.length} OPD`);
+            
+            try {
+              const reminderResult = await notifRemindSubmitF02(evaluator.id_evaluator);
+              console.log(`Hasil reminder F02 untuk evaluator ${evaluator.nama}:`, reminderResult.message);
+              
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (error) {
+              console.error(`Gagal mengirim reminder F02 untuk evaluator ${evaluator.nama}:`, error);
+            }
+          } else {
+            console.log(`Evaluator ${evaluator.nama} sudah menilai semua OPD yang submit F01`);
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error saat menjalankan reminder F02:', error);
+      }
+    });
     
     updateStatusTask.start()
     reminderH3Task.start()
     reminderH1Task.start()
+    remindSubmitF01.start()
+    remindSubmitF02.start()
     
-    console.log('Cron job reminder dan update status berhasil dimulai');
+    console.log('Cron job berhasil dimulai');
     
     return {
         updateStatusTask,
         reminderH3Task,
-        reminderH1Task
+        reminderH1Task,
+        remindSubmitF01,
+        remindSubmitF02
     };
 };
