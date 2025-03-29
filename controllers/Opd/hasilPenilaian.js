@@ -60,7 +60,7 @@ const getPenilaianOpdPeriode = async (req,res) => {
             });
         }
 
-        if (findData.length <= 0) {
+        if (findData.length == 0) {
             throw new ValidationError('Data penilaian belum tersedia')
         }
 

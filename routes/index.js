@@ -15,6 +15,7 @@ const hasilPenilaianEval = require('./Evaluator/hasilPenilaian')
 const hasilPenilaianOpd = require('./Opd/hasilPenilaian')
 const izinHasilPenilaian = require('./Admin/izinHasilPenilaian')
 const profile = require('./profile')
+const chat = require('./chat')
 const server = {}
 
 server.admin = admin
@@ -34,5 +35,6 @@ server.hasilPenilaianEval = hasilPenilaianEval
 server.hasilPenilaianOpd = hasilPenilaianOpd
 server.izinHasilPenilaian = izinHasilPenilaian
 server.profile = profile
+server.chat = chat
 
 module.exports = server

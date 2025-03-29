@@ -1,7 +1,9 @@
 const bcrypt = require('bcrypt');
 const sequelize = require('../../config/database')
 const db = require('../../models')
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+const { ValidationError, NotFoundError } = require('../../utils/error');
+const message = require('../../models/message');
 
 // regis admin
 const regisAdmin = async (req,res) => {
@@ -110,7 +112,7 @@ const loginAdmin = async (req,res) => {
         }
 
         const token = jwt.sign(
-            {id_admin: findUser.id_user, email: findUser.email, nama:findUser.admin.nama},
+            {id_admin: findUser.id_user, id_user:findUser.id_user, email: findUser.email, nama:findUser.admin.nama, role: 'admin'},
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: '1w'}
         )
@@ -130,7 +132,8 @@ const loginAdmin = async (req,res) => {
                 user: {
                     id_admin: findUser.id_user,
                     email: findUser.email,
-                    nama: findUser.admin.nama
+                    nama: findUser.admin.nama,
+                    role: 'admin'
                 }
             }
         })
@@ -188,4 +191,39 @@ const logoutAdmin = async (req,res) => {
     }
 }
 
-module.exports = {regisAdmin, loginAdmin, logoutAdmin}
+const defaultAdmin = async (req,res) => {
+    try {
+        const findAdmin = await db.Admin.findOne({
+            attributes: ['id_admin', 'nama']
+        })
+        if (!findAdmin) {
+            throw new NotFoundError('Data admin tidak ditemukan')
+        }
+
+        return res.status(200).json({success:true, status: 200, message: 'Data admin ditemukan', data: findAdmin})
+    } catch (error) {
+        console.error('Error in getOrCreateChatRoom:', error);
+        
+        if (error instanceof ValidationError) {
+            return res.status(400).json({
+                success: false,
+                status: 400,
+                message: error.message
+            });
+        } else if (error instanceof NotFoundError) {
+            return res.status(404).json({
+                success: false,
+                status: 404,
+                message: error.message
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                status: 500,
+                message: 'Kesalahan Server'
+            });
+        }   
+    }
+}
+
+module.exports = {regisAdmin, loginAdmin, logoutAdmin, defaultAdmin}

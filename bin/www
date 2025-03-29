@@ -7,6 +7,8 @@
 var app = require('../app');
 var debug = require('debug')('be-pekppp:server');
 var http = require('http');
+const { Server } = require('socket.io');
+const setupSocket = require('../services/socketService'); 
 
 /**
  * Get port from environment and store in Express.
@@ -24,6 +26,17 @@ var server = http.createServer(app);
 /**
  * Listen on provided port, on all network interfaces.
  */
+const io = new Server(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'development'
+      ? [process.env.DEV_ORIGIN]
+      : [process.env.PROD_ORIGIN],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+setupSocket(io);
 
 server.listen(port);
 server.on('error', onError);

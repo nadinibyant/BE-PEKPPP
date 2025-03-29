@@ -38,7 +38,7 @@ const loginOpd = async(req, res) => {
         }
 
         const token = jwt.sign(
-            {id_user: findUser.id_user},
+            {id_user: findUser.id_user, role: 'opd'},
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: '1w'}
         );

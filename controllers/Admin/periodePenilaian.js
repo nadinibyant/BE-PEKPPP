@@ -130,7 +130,6 @@ const tambahPeriode = async (req, res) => {
 
 //tampil periode 
 const tampilPeriode = async (req,res) => {
-    let transaction 
     try {
         const findPeriode = await db.Periode_penilaian.findAll({
             attributes: ['id_periode_penilaian', 'tahun_periode', 'tanggal_mulai', 'tanggal_selesai', 'status'],
@@ -158,7 +157,6 @@ const tampilPeriode = async (req,res) => {
 
     } catch (error) {
         console.error(error);
-        if (transaction) await transaction.rollback();
         
         switch(error.constructor) {
             case ValidationError:

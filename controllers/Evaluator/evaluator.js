@@ -37,7 +37,7 @@ const loginEvaluator = async(req, res) => {
         }
 
         const token = jwt.sign(
-            {id_user: findUser.id_user},
+            {id_user: findUser.id_user, role: 'evaluator'},
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: '1w'}
         );
@@ -59,7 +59,8 @@ const loginEvaluator = async(req, res) => {
                 user: {
                     id_evaluator: findUser.id_user,
                     email: findUser.email,
-                    nama: findUser.evaluator.nama
+                    nama: findUser.evaluator.nama,
+                    role: 'evaluator'
                 }
             }
         });

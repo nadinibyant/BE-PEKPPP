@@ -5,9 +5,7 @@ const { Op, where, Sequelize } = require('sequelize');
 
 //tampil periode berdasar tahun device
 const getPeriode = async (req, res) => {
-    let transaction;
     try {
-        transaction = await sequelize.transaction();
         const date = new Date();
         const year = date.getFullYear();
         const id_opd = req.user.id_user;
@@ -17,8 +15,7 @@ const getPeriode = async (req, res) => {
                 tahun_periode: year,
                 status: 'aktif'
             },
-            attributes: ['id_periode_penilaian', 'tahun_periode', 'tanggal_selesai', 'status'],
-            transaction
+            attributes: ['id_periode_penilaian', 'tahun_periode', 'tanggal_selesai', 'status']
         });
         
         if (!findPeriode) {
@@ -29,8 +26,7 @@ const getPeriode = async (req, res) => {
             where: {
                 id_opd,
                 id_periode_penilaian: findPeriode.id_periode_penilaian
-            },
-            transaction
+            }
         });
 
         const periodeWithF01 = await db.Periode_penilaian.findOne({
@@ -48,8 +44,7 @@ const getPeriode = async (req, res) => {
                     required: false,
                     attributes: ['id_pengisian_f01', 'status_pengisian']
                 }
-            ],
-            transaction
+            ]
         });
         
         const result = {
@@ -68,7 +63,6 @@ const getPeriode = async (req, res) => {
         
     } catch (error) {
         console.error(error);
-        if (transaction) await transaction.rollback();
         
         if (error instanceof ValidationError) {
             return res.status(400).json({

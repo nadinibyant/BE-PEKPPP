@@ -6,6 +6,7 @@ const middleware = require('../../middleware/authentication')
 router.post('/admin', controllers.regisAdmin)
 router.post('/loginAdmin', controllers.loginAdmin)
 router.delete('/logoutAdmin', middleware.verifyTokenUser, controllers.logoutAdmin)
+router.get('/default-admin', controllers.defaultAdmin)
 
 
 module.exports =router
