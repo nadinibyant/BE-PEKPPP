@@ -14,7 +14,6 @@ const setupSocket = async (io) => {
         onlineUsers[socket.id] = userData;
         
         if (userData.userType === 'admin') {
-          // Admin dapat melihat semua room chat yang aktif
           const chatRooms = await db.Chat_room.findAll({
             where: { is_active: true }
           });
@@ -23,14 +22,13 @@ const setupSocket = async (io) => {
             socket.join(room.id_room);
           });
         } else if (userData.userType === 'opd') {
-          // OPD hanya dapat melihat room chat yang terkait dengan ID OPD mereka
           const chatRooms = await db.Chat_room.findAll({
             where: { is_active: true },
             include: [{
               model: db.Message,
               as: 'messages',
-              where: { id_opd: userData.id_opd },
-              required: true // Ubah ke true untuk hanya mengambil room yang terkait dengan OPD ini
+              where: { id_opd: userData.id },
+              required: true 
             }]
           });
           
@@ -156,6 +154,15 @@ const setupSocket = async (io) => {
         console.error('Error marking messages as read:', error);
       }
     });
+
+    socket.on('join', (data) => {
+        if (data && data.roomId) {
+          console.log(`User ${socket.id} explicitly joining room ${data.roomId}`);
+          socket.join(data.roomId);
+        } else {
+          console.error('Invalid join request, missing roomId');
+        }
+      });
 
     socket.on('reconnect', () => {
       console.log('Socket reconnected:', socket.id);
