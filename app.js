@@ -43,6 +43,7 @@ app.use('/', server.hasilPenilaianOpd)
 app.use('/', server.izinHasilPenilaian)
 app.use('/', server.profile)
 app.use('/', server.chat)
+app.use('/', server.dashEvaluator)
 
 const cornJob = require('./jobs/cornJob');
 cornJob(db);

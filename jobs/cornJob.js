@@ -15,61 +15,162 @@ const { ValidationError } = require('../utils/error');
 module.exports = (db) => {
     console.log('Inisialisasi cron job...');
     
-    // Task tiap 30 detik
-    const updateStatusTask = cron.schedule('*/30 * * * * *', async () => {
-        console.log('Menjalankan tugas update status periode...', new Date());
-        
-        try {
-            const periodesToUpdate = await db.Periode_penilaian.findAll({
-                where: {
-                    tanggal_selesai: {
-                        [Op.lt]: new Date()
-                    },
-                    status: 'aktif'
-                },
-                include: [{
-                    model: db.Evaluator,
-                    as: 'evaluators',
-                    attributes: ['id_evaluator', 'nama', 'no_hp']
-                }]
-            });
-            
-            console.log(`Ditemukan ${periodesToUpdate.length} periode yang perlu diupdate status menjadi nonaktif`);
-            
-            if (periodesToUpdate.length > 0) {
-                const result = await db.Periode_penilaian.update(
-                    { status: 'nonaktif' },
-                    {
-                        where: {
-                            tanggal_selesai: {
-                                [Op.lt]: new Date()
-                            },
-                            status: 'aktif'
-                        }
-                    }
-                );
-                
-                console.log(`Berhasil update ${result[0]} periode menjadi nonaktif`);
-                
-                for (const periode of periodesToUpdate) {
-                    try {
-                        console.log(`Mengirim notifikasi penutupan untuk periode ID: ${periode.id_periode_penilaian}, Tahun: ${periode.tahun_periode}`);
-                        
-                        const notificationOPDResult = await notifPeriodeCloseOpd(periode);
-                        console.log('Hasil notifikasi OPD:', notificationOPDResult.message);
-                        
-                        const notificationEvaluatorResults = await notifPeriodeCloseEvaluator(periode);
-                        console.log('Hasil notifikasi Evaluator:', notificationEvaluatorResults.message);
-                    } catch (notifError) {
-                        console.error(`Gagal mengirim notifikasi penutupan untuk periode ID ${periode.id_periode_penilaian}:`, notifError);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error saat menjalankan update status periode:', error);
-        }
-    });
+        // Task tiap 30 detik
+        const updateStatusTask = cron.schedule('*/30 * * * * *', async () => {
+          console.log('Menjalankan tugas update status periode...', new Date());
+          
+          try {
+              const periodesToUpdate = await db.Periode_penilaian.findAll({
+                  where: {
+                      tanggal_selesai: {
+                          [Op.lt]: new Date()
+                      },
+                      status: 'aktif'
+                  },
+                  include: [{
+                      model: db.Evaluator,
+                      as: 'evaluators',
+                      attributes: ['id_evaluator', 'nama', 'no_hp']
+                  }]
+              });
+              
+              console.log(`Ditemukan ${periodesToUpdate.length} periode yang perlu diupdate status menjadi nonaktif`);
+              
+              if (periodesToUpdate.length > 0) {
+                  const result = await db.Periode_penilaian.update(
+                      { status: 'nonaktif' },
+                      {
+                          where: {
+                              tanggal_selesai: {
+                                  [Op.lt]: new Date()
+                              },
+                              status: 'aktif'
+                          }
+                      }
+                  );
+                  
+                  console.log(`Berhasil update ${result[0]} periode menjadi nonaktif`);
+                  
+                  for (const periode of periodesToUpdate) {
+                      try {
+                          console.log(`Mengirim notifikasi penutupan untuk periode ID: ${periode.id_periode_penilaian}, Tahun: ${periode.tahun_periode}`);
+                          
+                          const notificationOPDResult = await notifPeriodeCloseOpd(periode);
+                          console.log('Hasil notifikasi OPD:', notificationOPDResult.message);
+                          
+                          const notificationEvaluatorResults = await notifPeriodeCloseEvaluator(periode);
+                          console.log('Hasil notifikasi Evaluator:', notificationEvaluatorResults.message);
+  
+                          await autoAssignZeroValues(db, periode);
+                      } catch (notifError) {
+                          console.error(`Gagal mengirim notifikasi penutupan untuk periode ID ${periode.id_periode_penilaian}:`, notifError);
+                      }
+                  }
+              }
+          } catch (error) {
+              console.error('Error saat menjalankan update status periode:', error);
+          }
+      });
 
+      async function autoAssignZeroValues(db, periode) {
+          try {
+              console.log(`Memulai proses auto-zero untuk periode ID: ${periode.id_periode_penilaian}`);
+              
+              const allOpds = await db.Opd.findAll();
+              
+              const submittedF01Opds = await db.Pengisian_f01.findAll({
+                  where: {
+                      id_periode_penilaian: periode.id_periode_penilaian
+                  },
+                  attributes: ['id_opd']
+              });
+              
+              const submittedOpdIds = submittedF01Opds.map(item => item.id_opd);
+              const nonSubmittedOpds = allOpds.filter(opd => !submittedOpdIds.includes(opd.id_opd));
+              
+              console.log(`Ditemukan ${nonSubmittedOpds.length} OPD yang belum mengisi F01 dan akan diberikan nilai 0 otomatis`);
+              
+              if (nonSubmittedOpds.length > 0) {
+                  const evaluatorPeriodes = await db.Evaluator_periode_penilaian.findAll({
+                      where: {
+                          id_periode_penilaian: periode.id_periode_penilaian
+                      }
+                  });
+                  const zeroSkala = await db.Skala_indikator.findOne({
+                      where: {
+                          nilai_skala: 0
+                      }
+                  });
+                  
+                  if (!zeroSkala) {
+                      throw new Error('Skala indikator dengan nilai 0 tidak ditemukan');
+                  }
+                  const allIndikators = await db.Indikator.findAll();
+                  const allAspeks = await db.Aspek_penilaian.findAll();
+                  for (const opd of nonSubmittedOpds) {
+                      console.log(`Memproses OPD: ${opd.nama_opd} yang tidak mengisi F01`);
+                      
+                      const existingKumulatif = await db.Nilai_akhir_kumulatif.findOne({
+                          where: {
+                              id_opd: opd.id_opd,
+                              id_periode_penilaian: periode.id_periode_penilaian
+                          }
+                      });
+                      
+                      if (!existingKumulatif) {
+                          console.log(`Membuat nilai kumulatif baru untuk OPD: ${opd.nama_opd}`);
+                          
+                          await db.Nilai_akhir_kumulatif.create({
+                              total_kumulatif: 0,
+                              kategori: 'E',
+                              feedback: 'OPD tidak mengisi formulir F01 sebelum periode penilaian berakhir',
+                              id_opd: opd.id_opd,
+                              id_periode_penilaian: periode.id_periode_penilaian
+                          });
+                          
+                          if (evaluatorPeriodes.length > 0) {
+                              const evaluatorPeriode = evaluatorPeriodes[0];
+                              
+                              const pengisianF02 = await db.Pengisian_f02.create({
+                                  id_opd: opd.id_opd,
+                                  id_evaluator_periode_penilaian: evaluatorPeriode.id_evaluator_periode_penilaian
+                              });
+                              
+                              console.log(`Berhasil membuat pengisian F02 baru dengan ID: ${pengisianF02.id_pengisian_f02}`);
+                              
+                              const nilaiIndikatorBatch = allIndikators.map(indikator => ({
+                                  nilai_diperolah: 0,
+                                  id_skala: zeroSkala.id_skala,
+                                  id_pengisian_f02: pengisianF02.id_pengisian_f02,
+                                  id_indikator: indikator.id_indikator
+                              }));
+                              
+                              await db.nilai_indikator.bulkCreate(nilaiIndikatorBatch);
+                              
+                              const nilaiAspekBatch = allAspeks.map(aspek => ({
+                                  total_nilai_indikator: 0,
+                                  id_aspek_penilaian: aspek.id_aspek_penilaian,
+                                  id_pengisian_f02: pengisianF02.id_pengisian_f02
+                              }));
+                              
+                              await db.Nilai_aspek.bulkCreate(nilaiAspekBatch);
+                              
+                              await db.Nilai_akhir.create({
+                                  total_nilai: 0,
+                                  id_pengisian_f02: pengisianF02.id_pengisian_f02
+                              });
+                          }
+                      } else {
+                          console.log(`Nilai kumulatif sudah ada untuk OPD: ${opd.nama_opd}, tidak perlu membuat ulang`);
+                      }
+                  }
+                  
+                  console.log(`Berhasil menyelesaikan pengisian otomatis nilai 0 untuk ${nonSubmittedOpds.length} OPD yang tidak mengisi F01`);
+              }
+          } catch (error) {
+              console.error('Error saat menjalankan auto-zero untuk OPD yang tidak mengisi F01:', error);
+          }
+      }
 
     // Task cek reminder H-3 (berjalan setiap hari pukul 09:00)
     const reminderH3Task = cron.schedule('0 9 * * *', async () => {
