@@ -52,8 +52,6 @@ const getPeriode = async (req, res) => {
             status_submit: checkPengisianF01 ? "submit" : "belum submit"
         };
         
-        await transaction.commit();
-        
         return res.status(200).json({
             success: true, 
             status: 200, 

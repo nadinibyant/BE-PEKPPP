@@ -12,6 +12,11 @@ module.exports = (sequelize, DataTypes) => {
         as: 'evaluators'
       });
 
+      Periode_penilaian.hasMany(models.Evaluator_periode_penilaian, {
+        foreignKey: 'id_periode_penilaian',
+        as: 'evaluator_periode_penilaians'  
+      });
+
       Periode_penilaian.hasMany(models.Pengisian_f01, {
         foreignKey: 'id_periode_penilaian',
         as: 'pengisian_f01s'
