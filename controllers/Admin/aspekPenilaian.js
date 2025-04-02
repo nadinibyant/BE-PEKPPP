@@ -1,8 +1,7 @@
 const {ValidationError, NotFoundError} = require('../../utils/error')
 const db = require('../../models')
 const sequelize = require('../../config/database')
-const { Op, where } = require('sequelize');
-
+const {Sequelize, Op, where } = require('sequelize');
 
 // tambah aspek
 const tambahAspek = async (req,res) => {
@@ -282,7 +281,6 @@ const tambahBuktiDukung = async (req,res) => {
             throw new ValidationError('Data indikator tidak ditemukan')
         }
 
-
         const findNamaBukti = await db.Bukti_dukung.findAll({
             where: {
                 id_indikator,
@@ -304,20 +302,45 @@ const tambahBuktiDukung = async (req,res) => {
         },)
 
         let lastUrutan = findUrutan ? findUrutan.urutan : 0;
+        
+        const addedBuktiDukung = [];
 
         await Promise.all(nama_bukti_dukung.map(async (nama) => {
             lastUrutan += 1;
-            return await db.Bukti_dukung.create({
+            const newBukti = await db.Bukti_dukung.create({
                 nama_bukti_dukung: nama,
                 urutan: lastUrutan,
                 id_indikator
             }, {transaction});
+            
+            // Tambahkan ke array hasil
+            addedBuktiDukung.push(newBukti);
+            return newBukti;
         }));
 
-        await transaction.commit()
+        await transaction.commit();
 
-        return res.status(200).json({success:true, status: 200, message: 'Data bukti dukung berhasil ditambahkan'})
+        const newBuktiData = await db.Bukti_dukung.findAll({
+            where: {
+                id_bukti_dukung: {
+                    [Op.in]: addedBuktiDukung.map(bukti => bukti.id_bukti_dukung)
+                }
+            },
+            order: [['urutan', 'ASC']]
+        });
 
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data bukti dukung berhasil ditambahkan',
+            data: {
+                indikator: {
+                    id_indikator: findIndikator.id_indikator,
+                    nama_indikator: findIndikator.nama_indikator
+                },
+                bukti_dukung: newBuktiData
+            }
+        });
 
     } catch (error) {
         if (transaction) await transaction.rollback();
@@ -360,7 +383,8 @@ const tambahSkalaIndikator = async (req, res) => {
         }
 
         const existingScales = await db.Skala_indikator.findAll({
-            where: { id_indikator }
+            where: { id_indikator },
+            transaction
         });
 
         const existingScaleValues = existingScales.map(scale => scale.nilai_skala);
@@ -390,13 +414,38 @@ const tambahSkalaIndikator = async (req, res) => {
 
         const createdScales = await db.Skala_indikator.bulkCreate(skalaData, { transaction });
         
+        const indikatorWithScales = await db.Indikator.findByPk(id_indikator, {
+            include: [
+                {
+                    model: db.Skala_indikator,
+                    as: 'skala_indikators',
+                    attributes: ['id_skala', 'nilai_skala', 'deskripsi_skala'],
+                    order: [['nilai_skala', 'ASC']]
+                }
+            ],
+            attributes: ['id_indikator', 'kode_indikator', 'nama_indikator', 'bobot_indikator'],
+            transaction
+        });
+
+        const responseData = {
+            indikator: {
+                id_indikator: indikatorWithScales.id_indikator,
+                kode_indikator: indikatorWithScales.kode_indikator,
+                nama_indikator: indikatorWithScales.nama_indikator,
+                bobot_indikator: indikatorWithScales.bobot_indikator
+            },
+            skala_ditambahkan: createdScales,
+            semua_skala: indikatorWithScales.skala_indikator
+        };
+        
         await transaction.commit();
+        transaction = null; 
         
         return res.status(200).json({
             success: true, 
             status: 200, 
             message: 'Data skala indikator berhasil ditambahkan',
-            data: createdScales
+            data: responseData
         });
     } catch (error) {
         if (transaction) await transaction.rollback();
@@ -1158,6 +1207,24 @@ const editAspekPenilaian = async (req,res) => {
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek']
         })
 
+        if (nama_aspek) {
+            const existingName = await db.Aspek_penilaian.findOne({
+                where: {
+                    nama_aspek: sequelize.where(
+                        sequelize.fn('LOWER', sequelize.col('nama_aspek')),
+                        sequelize.fn('LOWER', nama_aspek)
+                    ),
+                    id_aspek_penilaian: { [Op.ne]: id_aspek_penilaian }
+                },
+                transaction
+            });
+            
+            if (existingName) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'Nama Aspek sudah digunakan' });
+            }
+        }
+
         if (!findAspek) {
             throw new ValidationError('Data aspek penilaian tidak ditemukan')
         }
@@ -1264,6 +1331,20 @@ const editIndikator = async (req,res) => {
             throw new ValidationError('Data indikator tidak ditemukan')
         }
 
+        if (kode_indikator) {
+            const existingCode = await db.Indikator.findOne({
+                where: {
+                    kode_indikator: kode_indikator,
+                    id_indikator: { [Op.ne]: id_indikator } 
+                },
+                transaction
+            })
+
+            if (existingCode) {
+                throw new ValidationError('Data indikator dengan kode tersebut sudah tersedia')
+            }
+        }
+
         await db.Indikator.update({
             id_aspek_penilaian: id_aspek_penilaian || findIndikator.AspekPenilaian.id_aspek_penilaian,
             kode_indikator: kode_indikator || findIndikator.kode_indikator,
@@ -1330,6 +1411,21 @@ const editBuktiDukung = async (req,res) => {
         const findBuktiDukung = await db.Bukti_dukung.findByPk(id_bukti_dukung, {transaction})
         if (!findBuktiDukung) {
             throw new ValidationError('Data bukti dukung tidak ditemukan')
+        }
+        
+        const id_indikator = findBuktiDukung.id_indikator;
+
+        const findNamaBukti = await db.Bukti_dukung.findOne({
+            where: {
+                id_indikator,
+                nama_bukti_dukung,
+                id_bukti_dukung: { [Op.ne]: id_bukti_dukung } 
+            },
+            transaction
+        });
+
+        if (findNamaBukti) {
+            throw new ValidationError(`Nama bukti dukung "${nama_bukti_dukung}" sudah digunakan`);
         }
 
         await db.Bukti_dukung.update({

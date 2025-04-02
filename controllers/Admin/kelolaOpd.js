@@ -33,6 +33,16 @@ const tambahOpd = async (req,res) => {
             ]
         })
 
+        const findNama = await db.Opd.findOne({
+            where: {
+                nama_opd: nama
+            }
+        })
+
+        if (findNama) {
+            return res.status(400).json({success: false, status: 400, message: 'Nama sudah digunakan'})
+        }
+
         if (findEmail) {
             return res.status(400).json({success: false, status:400, message: 'Email sudah digunakan'})
         }
@@ -101,21 +111,41 @@ const editOpd = async (req,res) => {
             })
         }
 
-        const updateData = {email}
+        const updateData = {}
 
-        if (email && email !== findUser.email) {
-            const existingEmail = await db.User.findOne({
-                where: {
-                    email,
-                    id_user: { [db.Sequelize.Op.ne]: id_user } 
-                },
-                transaction
-            })
+        if (email) {
+            if (email !== findUser.email) {
+                const existingEmail = await db.User.findOne({
+                    where: {
+                        email,
+                        id_user: { [db.Sequelize.Op.ne]: id_user } 
+                    },
+                    transaction
+                })
 
-            if (existingEmail) {
-                return res.status(400).json({success:false, status:400, message: 'Email sudah digunakan'})
+                if (existingEmail) {
+                    await transaction.rollback()
+                    return res.status(400).json({success:false, status:400, message: 'Email sudah digunakan'})
+                }
+                updateData.email = email
             }
-            updateData.email = email
+        }
+
+        if (nama) {
+            if (nama !== findUser.opd.nama_opd) {
+                const existingNama = await db.Opd.findOne({
+                    where:{
+                        nama_opd: nama,
+                        id_opd: { [db.Sequelize.Op.ne]: findUser.opd.id_opd } 
+                    },
+                    transaction
+                })
+
+                if (existingNama) {
+                    await transaction.rollback()
+                    return res.status(400).json({success: false, status:400, message: 'Nama sudah digunakan'})
+                }
+            }
         }
 
         if (password) {
@@ -138,18 +168,24 @@ const editOpd = async (req,res) => {
             updateData.password = await bcrypt.hash(password, 10)
         }
 
-        await db.User.update(updateData, {
-            where:{id_user}, transaction
-        })
+        if (Object.keys(updateData).length > 0) {
+            await db.User.update(updateData, {
+                where: {id_user}, 
+                transaction
+            })
+        }
 
-        await db.Opd.update({
-            nama_opd: nama || findUser.opd.nama_opd,
-            alamat: alamat || findUser.opd.alamat,
-            no_hp: no_hp || findUser.opd.no_hp
-        }, {
-            where:{id_opd:id_user},
-            transaction
-        })
+        const opdUpdateData = {}
+        if (nama) opdUpdateData.nama_opd = nama
+        if (alamat) opdUpdateData.alamat = alamat
+        if (no_hp) opdUpdateData.no_hp = no_hp
+
+        if (Object.keys(opdUpdateData).length > 0) {
+            await db.Opd.update(opdUpdateData, {
+                where: {id_opd: findUser.opd.id_opd},
+                transaction
+            })
+        }
 
         await transaction.commit()
 

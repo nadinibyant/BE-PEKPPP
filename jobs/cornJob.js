@@ -221,7 +221,7 @@ module.exports = (db) => {
         }
     });
 
-     // Task cek reminder H-3 (berjalan setiap hari pukul 09:00)
+     // Task cek reminder H-` (berjalan setiap hari pukul 09:00)
     const reminderH1Task = cron.schedule('0 9 * * *', async () => {
       console.log('Menjalankan pengecekan untuk reminder H-1...', new Date());
       

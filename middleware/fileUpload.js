@@ -28,8 +28,6 @@ const fileFilter = (req, file, cb) => {
     'application/msword',
     'application/vnd.ms-excel',
     'video/mp4',
-    'video/webm',
-    'video/avi',
   ];
   
   if (allowedTypes.includes(file.mimetype)) {
@@ -42,9 +40,9 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // maks(10MB)
-  }
+  // limits: {
+  //   fileSize: 10 * 1024 * 1024 // maks(10MB)
+  // }
 });
 
 // middleware handling

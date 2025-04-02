@@ -21,10 +21,12 @@ const corsOptions = {
   origin: process.env.NODE_ENV === 'development'
     ? [process.env.DEV_ORIGIN]
     : [process.env.PROD_ORIGIN],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
 };
 
-app.use(cors(corsOptions)); 
-
+app.use(cors(corsOptions));
 app.use('/', server.admin)
 app.use('/', server.adminKelolaOpd)
 app.use('/', server.adminKelolaEvaluator)

@@ -78,6 +78,16 @@ const tambahEvaluator = async (req, res) => {
             const existingUser = await db.User.findOne({
                 where: { email }
             });
+
+            const existingNama = await db.Evaluator.findOne({
+                where:{
+                    nama
+                }
+            })
+
+            if (existingNama) {
+                throw new ValidationError('Nama sudah digunakan, silahkan gunakan nama lain')
+            }
             
             if (existingUser) {
                 throw new ValidationError('Email sudah digunakan, silahkan gunakan email lain');
