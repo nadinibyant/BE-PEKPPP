@@ -24,6 +24,40 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_user',
         as: 'tokens'
       });
+      User.hasMany(models.Indikator, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedIndikators'
+      });
+      
+      User.hasMany(models.Aspek_penilaian, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedAspeks'
+      });
+      
+      User.hasMany(models.Bukti_dukung, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedBuktiDukungs'
+      });
+      
+      User.hasMany(models.Pertanyaan, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedPertanyaans'
+      });
+      
+      User.hasMany(models.Skala_indikator, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedSkalaIndikators'
+      });
+
+      User.hasMany(models.Opd, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedOpds'
+      });
+
+      User.hasMany(models.Evaluator, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedEvaluators'
+      });
     }
   }
   User.init({
@@ -40,7 +74,12 @@ module.exports = (sequelize, DataTypes) => {
     password: {
       type: DataTypes.STRING(256),
       allowNull: false
-    }
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
   }, {
     sequelize,
     modelName: 'User',

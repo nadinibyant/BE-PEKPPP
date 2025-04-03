@@ -6,6 +6,33 @@ const { Op, where, Sequelize } = require('sequelize');
 //tampil list opd
 const listOpdf02 = async (req, res) => {
     try {
+        const id_evaluator = req.user.id_user; 
+        
+        // Dapatkan periode penilaian saat ini
+        const currentYear = new Date().getFullYear();
+        const currentPeriode = await db.Periode_penilaian.findOne({
+            where: {
+                tahun_periode: currentYear
+            },
+            attributes: ['id_periode_penilaian']
+        });
+        
+        if (!currentPeriode) {
+            throw new ValidationError('Periode penilaian tahun ini belum tersedia');
+        }
+        
+        const evaluatorPeriode = await db.Evaluator_periode_penilaian.findOne({
+            where: {
+                id_evaluator: id_evaluator,
+                id_periode_penilaian: currentPeriode.id_periode_penilaian
+            },
+            attributes: ['id_evaluator_periode_penilaian']
+        });
+        
+        if (!evaluatorPeriode) {
+            throw new ValidationError('Evaluator tidak terdaftar untuk periode penilaian saat ini');
+        }
+        
         const findOpdAcc = await db.Opd.findAll({
             attributes: ['id_opd', 'nama_opd'],
             include: [
@@ -13,7 +40,8 @@ const listOpdf02 = async (req, res) => {
                     model: db.Pengisian_f01,
                     as: 'pengisian_f01',
                     where: {
-                        status_pengisian: 'Disetujui'
+                        status_pengisian: 'Disetujui',
+                        id_periode_penilaian: currentPeriode.id_periode_penilaian
                     },
                     attributes: []
                 }
@@ -30,7 +58,8 @@ const listOpdf02 = async (req, res) => {
             where: {
                 id_opd: {
                     [Op.in]: opdIds
-                }
+                },
+                id_evaluator_periode_penilaian: evaluatorPeriode.id_evaluator_periode_penilaian
             },
             attributes: ['id_opd']
         });
@@ -83,7 +112,8 @@ const getQuestF02 = async (req, res) => {
       const aspekPenilaian = await db.Aspek_penilaian.findAll({
         attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek', 'urutan'],
         where: {
-          parent_id_aspek_penilaian: null
+          parent_id_aspek_penilaian: null,
+          is_active: true
         },
         separate:true,
         order: [
@@ -383,7 +413,7 @@ const findf01OpdV2 = async (req, res) => {
         const {id_opd} = req.params
         const { id_indikator } = req.params;
 
-        const findIndikator = await db.Indikator.findByPk(id_indikator);
+        const findIndikator = await db.Indikator.unscoped().findByPk(id_indikator);
         if (!findIndikator) {
             throw new ValidationError('Data indikator tidak ditemukan');
         }
@@ -410,11 +440,11 @@ const findf01OpdV2 = async (req, res) => {
             throw new ValidationError('Data penilaian F-01 tidak ditemukan');
         }
 
-        const pertanyaanList = await db.Pertanyaan.findAll({
+        const pertanyaanList = await db.Pertanyaan.unscoped().findAll({
             where: {
                 indikator_id_indikator: id_indikator
             },
-            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger'],
+            attributes: ['id_pertanyaan', 'teks_pertanyaan', 'trigger_value', 'urutan', 'keterangan_trigger', 'is_active'],
             separate: true,
             order: [['urutan', 'ASC']],
             include: [
@@ -446,7 +476,7 @@ const findf01OpdV2 = async (req, res) => {
             attributes: ['id_jawaban', 'id_pertanyaan', 'jawaban_text', 'id_opsi_jawaban'],
             include: [
                 {
-                    model: db.Pertanyaan,
+                    model: db.Pertanyaan.unscoped(), 
                     as: 'pertanyaan',
                     attributes: ['id_pertanyaan'],
                     where: {
@@ -461,16 +491,16 @@ const findf01OpdV2 = async (req, res) => {
             ]
         });
 
-        const buktiDukungList = await db.Bukti_dukung_upload.findAll({
+        const buktiDukungList = await db.Bukti_dukung_upload.unscoped().findAll({
             where: {
                 id_pengisian_f01: findF01.id_pengisian_f01,
                 id_indikator: id_indikator
             },
             include: [
                 {
-                    model: db.Bukti_dukung,
+                    model: db.Bukti_dukung.unscoped(), 
                     as: 'bukti_dukung',
-                    attributes: ['nama_bukti_dukung']
+                    attributes: ['nama_bukti_dukung', 'is_active']
                 }
             ],
             attributes: ['id_bukti_dukung', 'nama_file']
@@ -482,6 +512,7 @@ const findf01OpdV2 = async (req, res) => {
                 id_bukti_dukung: buktiObj.id_bukti_dukung,
                 nama_file: buktiObj.nama_file,
                 nama_bukti_dukung: buktiObj.bukti_dukung ? buktiObj.bukti_dukung.nama_bukti_dukung : null,
+                is_active: buktiObj.bukti_dukung ? buktiObj.bukti_dukung.is_active : null
             };
         });
 

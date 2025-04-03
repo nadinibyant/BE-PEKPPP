@@ -22,6 +22,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_evaluator',
         as: 'izin_hasil_penilaians'
       });
+
+      this.belongsTo(models.User, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedByUser'
+      });
     }
   }
   Evaluator.init({
@@ -41,10 +46,42 @@ module.exports = (sequelize, DataTypes) => {
     no_hp: {
       type: DataTypes.STRING(15),
       allowNull: true
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    },
+    deleted_by: {
+      type: DataTypes.CHAR(36),
+      allowNull: true,
+      defaultValue: null,
+      references: {
+        model: 'Users',
+        key: 'id_user'
+      }
     }
   }, {
     sequelize,
     modelName: 'Evaluator',
+    defaultScope: {
+      where: {
+        is_active: true
+      }
+    },
+    scopes: {
+      allRecords: {},
+      deletedOnly: {
+        where: {
+          is_active: false
+        }
+      }
+    }
   });
   return Evaluator;
 };

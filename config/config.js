@@ -9,10 +9,13 @@ module.exports = {
     dialect: "mysql",
     port: process.env.DB_PORT || 3306,
     pool: {
-      max: 10,           
-      min: 0,             
-      acquire: 60000,   
-      idle: 10000   
+      max: 10,        
+      min: 0,        
+      acquire: 60000,
+      idle: 30000     
+    },
+    dialectOptions: {
+      connectTimeout: 60000 
     }
   },
   test: {

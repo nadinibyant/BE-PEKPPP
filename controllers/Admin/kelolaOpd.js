@@ -202,13 +202,28 @@ const hapusOpd = async (req,res) => {
     const transaction = await sequelize.transaction()
     try {
         const {id_user} = req.params
+        const userId = req.user.id_user
         const findUser = await db.User.findByPk(id_user, {transaction})
         if (!findUser) {
             await transaction.rollback()
             return res.status(400).json({success: false, status: 400, message: 'Data opd tidak ditemukan'})
         }
-        await db.Opd.destroy({where:{id_opd:id_user}, transaction})
-        await db.User.destroy({where:{id_user},transaction})
+
+        await db.Opd.update(
+            {
+                is_active: false,
+                deleted_at: new Date(),
+                deleted_by: userId
+            }, 
+            {
+                where: {id_opd: id_user},
+                transaction
+            }
+        );
+
+        await findUser.update({
+            is_active: false
+        }, {transaction})
 
         await transaction.commit()
         res.status(200).json({success:true, status:200, message: 'Data opd berhasil dihapus'})

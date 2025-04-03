@@ -163,9 +163,20 @@ const detailVerifikasi = async (req, res) => {
                         nama_indikator: indikator.nama_indikator,
                         kode_indikator: indikator.kode_indikator,
                         urutan: indikator.urutan, 
+                        pertanyaan: {},  // Tambahkan ini
                         bukti_dukung: []
                     });
                 }
+
+                // if (!indikatorMap.has(indikatorId)) {
+                //     indikatorMap.set(indikatorId, {
+                //         id_indikator: indikatorId,
+                //         nama_indikator: indikator.nama_indikator,
+                //         kode_indikator: indikator.kode_indikator,
+                //         urutan: indikator.urutan, 
+                //         bukti_dukung: []
+                //     });
+                // }
             }
         });
         
@@ -270,16 +281,41 @@ const detailVerifikasi = async (req, res) => {
                 }
             }
         });
+        // indikatorMap.forEach(indikator => {
+        //     Object.values(indikator.pertanyaan).forEach(pertanyaan => {
+        //         pertanyaan.child_pertanyaan.sort((a, b) => a.urutan - b.urutan);
+        //     });
+        //     indikator.pertanyaan = Object.values(indikator.pertanyaan)
+        //         .sort((a, b) => a.urutan - b.urutan);
+        //     indikator.bukti_dukung.sort((a, b) => a.urutan - b.urutan);
+        // });
         indikatorMap.forEach(indikator => {
-            Object.values(indikator.pertanyaan).forEach(pertanyaan => {
-                pertanyaan.child_pertanyaan.sort((a, b) => a.urutan - b.urutan);
-            });
-            indikator.pertanyaan = Object.values(indikator.pertanyaan)
-                .sort((a, b) => a.urutan - b.urutan);
+            if (indikator.pertanyaan) {  // Tambahkan pemeriksaan ini
+                Object.values(indikator.pertanyaan).forEach(pertanyaan => {
+                    pertanyaan.child_pertanyaan.sort((a, b) => a.urutan - b.urutan);
+                });
+            }
+            indikator.pertanyaan = indikator.pertanyaan ? Object.values(indikator.pertanyaan)
+                .sort((a, b) => a.urutan - b.urutan) : [];
             indikator.bukti_dukung.sort((a, b) => a.urutan - b.urutan);
         });
+
         const indikatorData = Array.from(indikatorMap.values())
-            .sort((a, b) => a.urutan - b.urutan);
+            .sort((a, b) => {
+                const extractNumber = (code) => {
+                    const matches = code.match(/^(\d+)/);
+                    return matches ? parseInt(matches[0], 10) : 0;
+                };
+                
+                const numA = extractNumber(a.kode_indikator);
+                const numB = extractNumber(b.kode_indikator);
+                
+                if (numA !== numB) {
+                    return numA - numB;
+                }
+                
+                return a.kode_indikator.localeCompare(b.kode_indikator);
+            });
 
         const responseData = {
             id_pengisian_f01: findPengisian.id_pengisian_f01,

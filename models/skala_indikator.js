@@ -14,6 +14,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_skala',
         as: 'nilai_indikators'
       });
+
+      this.belongsTo(models.User, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedByUser'
+      });
     }
   }
   Skala_indikator.init({
@@ -38,10 +43,42 @@ module.exports = (sequelize, DataTypes) => {
         model: 'Indikators',
         key: 'id_indikator'
       }
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    },
+    deleted_by: {
+      type: DataTypes.CHAR(36),
+      allowNull: true,
+      defaultValue: null,
+      references: {
+        model: 'Users',
+        key: 'id_user'
+      }
     }
   }, {
     sequelize,
     modelName: 'Skala_indikator',
+    defaultScope: {
+      where: {
+        is_active: true
+      }
+    },
+    scopes: {
+      allRecords: {},
+      deletedOnly: {
+        where: {
+          is_active: false
+        }
+      }
+    }
   });
   return Skala_indikator;
 };

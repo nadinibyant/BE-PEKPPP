@@ -27,22 +27,24 @@ const fileFilter = (req, file, cb) => {
     'image/png',
     'application/msword',
     'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
     'video/mp4',
   ];
+  
+  console.log('File MIME type:', file.mimetype); 
   
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Format file tidak didukung. Gunakan PDF, JPG, PNG, DOC, DOCX, XLS, atau XLSX.'), false);
+    cb(new Error(`Format file tidak didukung: ${file.mimetype}. Gunakan PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, atau format lain yang didukung.`), false);
   }
 };
 
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  // limits: {
-  //   fileSize: 10 * 1024 * 1024 // maks(10MB)
-  // }
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // middleware handling

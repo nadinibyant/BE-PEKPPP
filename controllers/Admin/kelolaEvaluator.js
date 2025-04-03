@@ -41,7 +41,8 @@ const tambahEvaluator = async (req, res) => {
             const existingUser = await db.User.findOne({
                 where: { 
                     email: findOpd.user.email,
-                    id_user: { [db.Sequelize.Op.ne]: findOpd.user.id_user }
+                    id_user: { [db.Sequelize.Op.ne]: findOpd.user.id_user },
+                    is_active: true
                 }
             });
             
@@ -343,53 +344,70 @@ const hapusEvaluator = async (req,res) => {
     const transaction = await sequelize.transaction()
     try {
         const {id_evaluator} = req.params
+        const id_user = req.user.id_user
         const findEvaluator = await db.Evaluator.findByPk(id_evaluator)
         if (!findEvaluator) {
             throw new NotFoundError('Data evaluator tidak ditemukan')
         }
 
-        const relatedPeriods = await db.Evaluator_periode_penilaian.findAll({
-            where: {id_evaluator},
+        await findEvaluator.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, {transaction})
+
+        await db.User.update({
+            is_active: false
+        }, {
+            where: {
+                id_user: id_evaluator,
+            },
             transaction
         });
 
-        for (const period of relatedPeriods) {
-            const relatedF02s = await db.Pengisian_f02.findAll({
-                where: { 
-                    id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
-                },
-                transaction
-            });
 
-            for (const f02 of relatedF02s) {
-                await db.Izin_hasil_penilaian.destroy({
-                    where: { id_pengisian_f02: f02.id_pengisian_f02 },
-                    transaction
-                });
-            }
+        // const relatedPeriods = await db.Evaluator_periode_penilaian.findAll({
+        //     where: {id_evaluator},
+        //     transaction
+        // });
 
-            await db.Pengisian_f02.destroy({
-                where: { 
-                    id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
-                },
-                transaction
-            });
-        }
+        // for (const period of relatedPeriods) {
+        //     const relatedF02s = await db.Pengisian_f02.findAll({
+        //         where: { 
+        //             id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
+        //         },
+        //         transaction
+        //     });
 
-        await db.Evaluator_periode_penilaian.destroy({
-            where: {id_evaluator},
-            transaction
-        });
+        //     for (const f02 of relatedF02s) {
+        //         await db.Izin_hasil_penilaian.destroy({
+        //             where: { id_pengisian_f02: f02.id_pengisian_f02 },
+        //             transaction
+        //         });
+        //     }
+
+        //     await db.Pengisian_f02.destroy({
+        //         where: { 
+        //             id_evaluator_periode_penilaian: period.id_evaluator_periode_penilaian 
+        //         },
+        //         transaction
+        //     });
+        // }
+
+        // await db.Evaluator_periode_penilaian.destroy({
+        //     where: {id_evaluator},
+        //     transaction
+        // });
  
-        await db.Evaluator.destroy({
-            where: {id_evaluator}, 
-            transaction
-        });
+        // await db.Evaluator.destroy({
+        //     where: {id_evaluator}, 
+        //     transaction
+        // });
         
-        await db.User.destroy({
-            where: {id_user: id_evaluator}, 
-            transaction
-        });
+        // await db.User.destroy({
+        //     where: {id_user: id_evaluator}, 
+        //     transaction
+        // });
 
         await transaction.commit();
         res.status(200).json({

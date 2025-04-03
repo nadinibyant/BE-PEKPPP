@@ -11,12 +11,12 @@ const listIzinPenilaian = async (req, res) => {
             attributes: ['id_izin_hasil_penilaian', 'id_opd', 'id_evaluator', 'id_pengisian_f02', 'id_nilai_kumulatif', 'tanggal_pengajuan', 'status'],
             include: [
                 {
-                    model: db.Opd,
+                    model: db.Opd.unscoped(),
                     as: 'opd',
                     attributes: ['id_opd', 'nama_opd']
                 },
                 {
-                    model: db.Evaluator,
+                    model: db.Evaluator.unscoped(),
                     as: 'evaluator',
                     attributes: ['id_evaluator', 'nama']
                 },
@@ -43,7 +43,7 @@ const listIzinPenilaian = async (req, res) => {
                     attributes: ['id_opd'],
                     include: [
                         {
-                            model: db.Opd,
+                            model: db.Opd.unscoped(),
                             as: 'opd',
                             attributes: ['nama_opd']
                         }
@@ -54,9 +54,9 @@ const listIzinPenilaian = async (req, res) => {
         });
 
         if (findData.length === 0) {
-            return res.status(200).json({
+            return res.status(400).json({
                 success: true, 
-                status: 200, 
+                status: 400, 
                 message: 'Data izin hasil penilaian tidak tersedia', 
                 data: []
             });

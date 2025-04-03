@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_aspek_penilaian',
         as: 'nilai_aspeks'
       });
+
+      this.belongsTo(models.User, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedByUser'
+      });
     }
   }
   Aspek_penilaian.init({
@@ -52,10 +57,42 @@ module.exports = (sequelize, DataTypes) => {
     urutan: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    },
+    deleted_by: {
+      type: DataTypes.CHAR(36),
+      allowNull: true,
+      defaultValue: null,
+      references: {
+        model: 'Users',
+        key: 'id_user'
+      }
     }
   }, {
     sequelize,
     modelName: 'Aspek_penilaian',
+    // defaultScope: {
+    //   where: {
+    //     is_active: true
+    //   }
+    // },
+    // scopes: {
+    //   allRecords: {},
+    //   deletedOnly: {
+    //     where: {
+    //       is_active: false
+    //     }
+    //   }
+    // }
   });
   return Aspek_penilaian;
 };

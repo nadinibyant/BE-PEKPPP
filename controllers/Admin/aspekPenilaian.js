@@ -15,9 +15,15 @@ const tambahAspek = async (req,res) => {
         }
 
         const findAspek = await db.Aspek_penilaian.findOne({
-            where: sequelize.literal(`LOWER(nama_aspek) = LOWER('${nama_aspek.replace(/'/g, "''")}')`),
+            where: {
+                [Op.and]: [
+                    sequelize.literal(`LOWER(nama_aspek) = LOWER('${nama_aspek.replace(/'/g, "''")}')`),
+                    { is_active: true }
+                ]
+            },
             transaction
-        })
+        });
+
         if (findAspek) {
             throw new ValidationError('Nama aspek penilaian sudah digunakan')
         }
@@ -183,37 +189,54 @@ const tambahIndikator = async (req, res) => {
                 }],
                 transaction
             });
-
+        
             if (!findSubAspek) {
                 throw new ValidationError('Data sub aspek penilaian tidak ditemukan');
             }
-
-            const findAllIndikator = await db.Indikator.findAll({
-                where: { id_aspek_penilaian: id_sub_aspek_penilaian },
+            
+            const allSubAspeks = await db.Aspek_penilaian.findAll({
+                where: { 
+                    parent_id_aspek_penilaian: findSubAspek.parent_id_aspek_penilaian 
+                },
+                attributes: ['id_aspek_penilaian'],
                 transaction
             });
-
-            const totalIndikator = findAllIndikator.length + 1;
-            const bobot_indikator = findSubAspek.ParentAspek.bobot_aspek / totalIndikator;
-
-            await Promise.all(findAllIndikator.map(indikator => 
-                db.Indikator.update(
-                    { bobot_indikator},
-                    { 
-                        where: { id_indikator: indikator.id_indikator },
-                        transaction 
+            
+            const subAspekIds = allSubAspeks.map(subAspek => subAspek.id_aspek_penilaian);
+            
+            const totalIndikator = await db.Indikator.count({
+                where: { 
+                    id_aspek_penilaian: {
+                        [Op.in]: subAspekIds
                     }
-                )
-            ));
-
+                },
+                transaction
+            });
+            
+            const totalIndikatorDenganBaru = totalIndikator + 1;
+            
+            const bobot_indikator = findSubAspek.ParentAspek.bobot_aspek / totalIndikatorDenganBaru;
+            
+            await db.Indikator.update(
+                { bobot_indikator },
+                { 
+                    where: { 
+                        id_aspek_penilaian: {
+                            [Op.in]: subAspekIds
+                        }
+                    },
+                    transaction 
+                }
+            );
+        
             const findLastUrutan = await db.Indikator.findOne({
                 where: { id_aspek_penilaian: id_sub_aspek_penilaian },
                 order: [['urutan', 'DESC']],
                 transaction
             });
-
+        
             const nextUrutan = findLastUrutan ? findLastUrutan.urutan + 1 : 1;
-
+        
             await db.Indikator.create({
                 kode_indikator,
                 nama_indikator,
@@ -892,7 +915,8 @@ const allAspek = async (req, res) => {
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'bobot_aspek', 'urutan'],
             order: [['urutan', 'ASC']],
             where: {
-                parent_id_aspek_penilaian: null
+                parent_id_aspek_penilaian: null,
+                is_active: true
             },
             include: [
                 {
@@ -1776,15 +1800,99 @@ const processEditSubPertanyaan = async (
 const hapusAspekPenilaian = async (req,res) => {
     let transaction
     try {
-        transaction = await sequelize.transaction()
-        const {id_aspek_penilaian} = req.params
-        const findAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian)
+        transaction = await sequelize.transaction();
+        const { id_aspek_penilaian } = req.params;
+        const userId = req.user.id_user
+        
+        const findAspek = await db.Aspek_penilaian.findByPk(id_aspek_penilaian);
         if (!findAspek) {
-            throw new ValidationError('Data aspek penilaian tidak ditemukan')
+            throw new ValidationError('Data aspek penilaian tidak ditemukan');
         }
 
-        await db.Aspek_penilaian.destroy({where:{id_aspek_penilaian}})
-        return res.status(200).json({success:true, status:200, message: 'Data aspek penilaian berhasil dihapus'})
+        // Soft delete aspek penilaian utama
+        await findAspek.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: userId
+        }, { transaction });
+        
+        // Soft delete semua child aspek
+        await db.Aspek_penilaian.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: userId
+        }, { 
+            where: { parent_id_aspek_penilaian: id_aspek_penilaian },
+            transaction 
+        });
+        
+        const allAspekIds = [id_aspek_penilaian];
+        const childAspeks = await db.Aspek_penilaian.findAll({
+            attributes: ['id_aspek_penilaian'],
+            where: { parent_id_aspek_penilaian: id_aspek_penilaian },
+            transaction
+        });
+        
+        childAspeks.forEach(child => {
+            allAspekIds.push(child.id_aspek_penilaian);
+        });
+        
+        // Soft delete semua indikator 
+        await db.Indikator.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: userId
+        }, { 
+            where: { id_aspek_penilaian: { [Op.in]: allAspekIds } },
+            transaction 
+        });
+        
+        const relatedIndikators = await db.Indikator.findAll({
+            attributes: ['id_indikator'],
+            where: { id_aspek_penilaian: { [Op.in]: allAspekIds } },
+            transaction
+        });
+        
+        const indikatorIds = relatedIndikators.map(ind => ind.id_indikator);
+        
+        if (indikatorIds.length > 0) {
+            // Soft delete bukti dukung 
+            await db.Bukti_dukung.update({
+                is_active: false,
+                deleted_at: new Date(),
+                deleted_by: userId
+            }, { 
+                where: { id_indikator: { [Op.in]: indikatorIds } },
+                transaction 
+            });
+            
+            // Soft delete pertanyaan 
+            await db.Pertanyaan.update({
+                is_active: false,
+                deleted_at: new Date(),
+                deleted_by: userId
+            }, { 
+                where: { indikator_id_indikator: { [Op.in]: indikatorIds } },
+                transaction 
+            });
+            
+            // Soft delete skala indikator 
+            await db.Skala_indikator.update({
+                is_active: false,
+                deleted_at: new Date(),
+                deleted_by: userId
+            }, { 
+                where: { id_indikator: { [Op.in]: indikatorIds } },
+                transaction 
+            });
+        }
+        
+        await transaction.commit();
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data aspek penilaian dan semua data terkait berhasil dinonaktifkan'
+        });
     } catch (error) {
         console.error(error);
         if (transaction) await transaction.rollback();
@@ -1815,18 +1923,139 @@ const hapusAspekPenilaian = async (req,res) => {
 }
 
 // hapus indikator
-const hapusIndikator = async (req,res) => {
+const hapusIndikator = async (req, res) => {
     let transaction 
     try {
         transaction = await sequelize.transaction()
         const {id_indikator} = req.params
-        const findIndikator = await db.Indikator.findByPk(id_indikator)
+        const id_user = req.user.id_user
+        
+        const findIndikator = await db.Indikator.findByPk(id_indikator, {
+            include: [{
+                model: db.Aspek_penilaian,
+                as: 'AspekPenilaian',
+                include: [{
+                    model: db.Aspek_penilaian,
+                    as: 'ParentAspek'
+                }]
+            }]
+        });
+        
         if (!findIndikator) {
             throw new ValidationError('Data indikator tidak ditemukan')
         }
 
-        await db.Indikator.destroy({where:{id_indikator}})
-        return res.status(200).json({success:true, status:200, message: 'Data indikator berhasil dihapus'})
+        await findIndikator.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, {transaction});
+        
+        const aspek = findIndikator.AspekPenilaian;
+        const isSubAspek = aspek.parent_id_aspek_penilaian !== null;
+        
+        if (isSubAspek) {
+            const parentAspekId = aspek.parent_id_aspek_penilaian;
+            const allSubAspeks = await db.Aspek_penilaian.findAll({
+                where: { 
+                    parent_id_aspek_penilaian: parentAspekId,
+                    is_active: true
+                },
+                attributes: ['id_aspek_penilaian'],
+                transaction
+            });
+            
+            const subAspekIds = allSubAspeks.map(subAspek => subAspek.id_aspek_penilaian);
+            
+            const totalIndikatorAktif = await db.Indikator.count({
+                where: { 
+                    id_aspek_penilaian: {
+                        [Op.in]: subAspekIds
+                    },
+                    is_active: true
+                },
+                transaction
+            });
+            
+            if (totalIndikatorAktif > 0) {
+                const parentAspek = aspek.ParentAspek;
+                const bobotParent = parentAspek.bobot_aspek;
+                
+                const bobotBaru = bobotParent / totalIndikatorAktif;
+                
+                await db.Indikator.update(
+                    { bobot_indikator: bobotBaru },
+                    { 
+                        where: { 
+                            id_aspek_penilaian: {
+                                [Op.in]: subAspekIds
+                            },
+                            is_active: true
+                        },
+                        transaction 
+                    }
+                );
+            }
+        } else {
+            const aspekId = findIndikator.id_aspek_penilaian;
+            
+            const totalIndikatorAktif = await db.Indikator.count({
+                where: { 
+                    id_aspek_penilaian: aspekId,
+                    is_active: true
+                },
+                transaction
+            });
+            
+            if (totalIndikatorAktif > 0) {
+                const bobotBaru = aspek.bobot_aspek / totalIndikatorAktif;
+                
+                await db.Indikator.update(
+                    { bobot_indikator: bobotBaru },
+                    { 
+                        where: { 
+                            id_aspek_penilaian: aspekId,
+                            is_active: true
+                        },
+                        transaction 
+                    }
+                );
+            }
+        }
+        
+        await db.Bukti_dukung.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, { 
+            where: { id_indikator },
+            transaction 
+        });
+        
+        await db.Pertanyaan.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, { 
+            where: { indikator_id_indikator: id_indikator },
+            transaction 
+        });
+        
+        await db.Skala_indikator.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, { 
+            where: { id_indikator },
+            transaction 
+        });
+        
+        await transaction.commit();
+        return res.status(200).json({
+            success: true, 
+            status: 200, 
+            message: 'Data indikator berhasil dinonaktifkan dan bobot indikator lain telah diperbarui'
+        });
     } catch (error) {
         console.error(error);
         if (transaction) await transaction.rollback();
@@ -1854,7 +2083,7 @@ const hapusIndikator = async (req,res) => {
                 });
         }
     }
-}
+};
 
 // hapus bukti dukung
 const hapusBuktiDukung = async (req,res) => {
@@ -1862,12 +2091,19 @@ const hapusBuktiDukung = async (req,res) => {
     try {
         transaction = await sequelize.transaction()
         const {id_bukti_dukung} = req.params
+        const id_user = req.user.id_user
         const findBukti = await db.Bukti_dukung.findByPk(id_bukti_dukung)
         if (!findBukti) {
             throw new ValidationError('Data bukti dukung tidak ditemukan')
         }
 
-        await db.Bukti_dukung.destroy({where:{id_bukti_dukung}})
+        await findBukti.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, {transaction})
+
+        await transaction.commit()
         return res.status(200).json({success:true, status: 200, message: 'Data bukti dukung berhasil dihapus'})
     } catch (error) {
         console.error(error);
@@ -1904,12 +2140,18 @@ const hapusSkalaIndikator = async (req,res) => {
     try {
         transaction = await sequelize.transaction()
         const {id_skala} = req.params
+        const id_user = req.user.id_user
         const findSkala = await db.Skala_indikator.findByPk(id_skala)
         if (!findSkala) {
             throw new ValidationError('Data skala indikator tidak ditemukan')
         }
 
-        await db.Skala_indikator.destroy({where:{id_skala}})
+        await findSkala.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, {transaction})
+        await transaction.commit()
         return res.status(200).json({success:true, status: 200, message: 'Data skala indikator berhasil dihapus'})
     } catch (error) {
         console.error(error);
@@ -1946,12 +2188,18 @@ const hapusPertanyaan = async (req,res) => {
     try {
         transaction = await sequelize.transaction()
         const {id_pertanyaan} = req.params
+        const id_user = req.user.id_user
         const findPertanyaan = await db.Pertanyaan.findByPk(id_pertanyaan)
         if (!findPertanyaan) {
             throw new ValidationError('Data pertanyaan tidak ditemukan')
         }
 
-        await db.Pertanyaan.destroy({where:{id_pertanyaan}})
+        await findPertanyaan.update({
+            is_active: false,
+            deleted_at: new Date(),
+            deleted_by: id_user
+        }, {transaction})
+        await transaction.commit()
         return res.status(200).json({success:true, status: 200, message: 'Data pertanyaan berhasil dihapus'})
     } catch (error) {
         console.error(error);

@@ -30,6 +30,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'id_pertanyaan',
         as: 'jawabans'
       });
+      this.belongsTo(models.User, {
+        foreignKey: 'deleted_by',
+        as: 'DeletedByUser'
+      });
     }
   }
   Pertanyaan.init({
@@ -78,10 +82,42 @@ module.exports = (sequelize, DataTypes) => {
     keterangan_trigger: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    },
+    deleted_by: {
+      type: DataTypes.CHAR(36),
+      allowNull: true,
+      defaultValue: null,
+      references: {
+        model: 'Users',
+        key: 'id_user'
+      }
     }
   }, {
     sequelize,
     modelName: 'Pertanyaan',
+    defaultScope: {
+      where: {
+        is_active: true
+      }
+    },
+    scopes: {
+      allRecords: {},
+      deletedOnly: {
+        where: {
+          is_active: false
+        }
+      }
+    }
   });
   return Pertanyaan;
 };
