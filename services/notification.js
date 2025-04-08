@@ -61,7 +61,7 @@ const notifPeriodToAllOpd = async (periodeData) => {
     }
 }
 
-// notifikasi setelah submit f01 untuk evaluator
+// notifikasi periode dibukat untuk evaluator
 const notifPeriodToAllEvaluator = async (periodeData) => {
     try {
         if (!whatsappClient.info) {

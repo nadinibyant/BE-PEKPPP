@@ -363,7 +363,8 @@ module.exports = (db) => {
         
         const submittedF01s = await db.Pengisian_f01.findAll({
           where: {
-            id_periode_penilaian: activePeriode.id_periode_penilaian
+            id_periode_penilaian: activePeriode.id_periode_penilaian,
+            status_pengisian: 'Disetujui'
           },
           attributes: ['id_opd']
         });
