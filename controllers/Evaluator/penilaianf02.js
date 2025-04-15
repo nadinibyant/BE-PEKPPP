@@ -696,16 +696,13 @@ const submitF02 = async (req, res) => {
                 throw new ValidationError(`Skala dengan ID ${id_skala} tidak ditemukan`);
             }
       
-            console.log('Bobot indikator:', indikator.bobot_indikator);
             console.log('Nilai skala:', skalaIndikator.nilai_skala);
     
-            const bobotDecimal = parseFloat(indikator.bobot_indikator || 0) / 100;
-            const nilai_diperoleh = parseFloat(bobotDecimal * (skalaIndikator.nilai_skala || 0));
+            const nilai_diperoleh = parseInt(skalaIndikator.nilai_skala);
+            
             detailedCalculation.indicators.push({
                 id: id_indikator,
                 name: indikator.nama_indikator || `Indikator ${id_indikator}`,
-                bobot: indikator.bobot_indikator,
-                bobotDecimal: bobotDecimal,
                 skala: skalaIndikator.nilai_skala,
                 nilai: nilai_diperoleh,
                 aspectId: indikator.AspekPenilaian?.id_aspek_penilaian,
@@ -716,7 +713,7 @@ const submitF02 = async (req, res) => {
                 throw new ValidationError('Perhitungan nilai menghasilkan nilai null');
             }
             
-            console.log('Nilai akhir yang dihitung:', nilai_diperoleh);
+            console.log('Nilai yang digunakan:', nilai_diperoleh);
 
             const existingNilai = await db.nilai_indikator.findOne({
                 where: {
@@ -746,6 +743,7 @@ const submitF02 = async (req, res) => {
                     updatedAt: new Date()
                 }, { transaction });
             }
+            
             const id_aspek_penilaian = indikator.AspekPenilaian?.id_aspek_penilaian;
             
             if (id_aspek_penilaian) {
@@ -778,7 +776,12 @@ const submitF02 = async (req, res) => {
   
         const nilaiAspekUntukDisimpan = {};
    
-        const konsolidasiSubAspek = {};
+        for (const [id_aspek, data] of Object.entries(aspekValues)) {
+            nilaiAspekUntukDisimpan[id_aspek] = {
+                total: data.count > 0 ? data.total / data.count : 0, 
+                count: data.count
+            };
+        }
     
         const subAspekByParent = {};
         for (const aspek of allAspek) {
@@ -792,32 +795,33 @@ const submitF02 = async (req, res) => {
         
         console.log('Sub aspek berdasarkan parent:', JSON.stringify(subAspekByParent));
    
-        for (const [id_aspek, data] of Object.entries(aspekValues)) {
-            nilaiAspekUntukDisimpan[id_aspek] = {
-                total: data.total,
-                count: data.count
-            };
-        }
-
+        const konsolidasiSubAspek = {};
+        
         for (const [parentId, subAspekList] of Object.entries(subAspekByParent)) {
             konsolidasiSubAspek[parentId] = {
                 total: 0,
                 count: 0,
+                totalIndicators: 0, 
                 subAspek: []
             };
 
             for (const subAspekId of subAspekList) {
                 if (aspekValues[subAspekId]) {
                     konsolidasiSubAspek[parentId].total += aspekValues[subAspekId].total;
-                    konsolidasiSubAspek[parentId].count += aspekValues[subAspekId].count;
+                    konsolidasiSubAspek[parentId].totalIndicators += aspekValues[subAspekId].count;
+                    konsolidasiSubAspek[parentId].count += 1; 
                     konsolidasiSubAspek[parentId].subAspek.push({
                         id: subAspekId,
-                        nilai: aspekValues[subAspekId].total
+                        nilai: aspekValues[subAspekId].count > 0 ? aspekValues[subAspekId].total / aspekValues[subAspekId].count : 0 // Rata-rata indikator dalam sub-aspek
                     });
                 }
             }
             
-            console.log(`Induk aspek ${parentId}: total nilai dari sub aspek = ${konsolidasiSubAspek[parentId].total} (dari ${konsolidasiSubAspek[parentId].subAspek.length} sub aspek)`);
+            if (konsolidasiSubAspek[parentId].totalIndicators > 0) {
+                konsolidasiSubAspek[parentId].total = konsolidasiSubAspek[parentId].total / konsolidasiSubAspek[parentId].totalIndicators;
+            }
+            
+            console.log(`Induk aspek ${parentId}: rata-rata nilai dari sub aspek = ${konsolidasiSubAspek[parentId].total} (dari ${konsolidasiSubAspek[parentId].totalIndicators} indikator dalam ${konsolidasiSubAspek[parentId].count} sub aspek)`);
         }
         
         console.log('Konsolidasi sub aspek:', JSON.stringify(konsolidasiSubAspek));
@@ -829,12 +833,15 @@ const submitF02 = async (req, res) => {
 
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
-            let total_nilai_indikator = 0;
+            let nilai_rata_rata = 0;
             
             if (konsolidasiSubAspek[id_aspek_penilaian]) {
-                total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
+                nilai_rata_rata = konsolidasiSubAspek[id_aspek_penilaian].total;
+                console.log(`Aspek ${id_aspek_penilaian} menggunakan rata-rata dari sub aspek: ${nilai_rata_rata}`);
             } else if (aspekValues[id_aspek_penilaian]) {
-                total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+                nilai_rata_rata = aspekValues[id_aspek_penilaian].count > 0 ? 
+                    aspekValues[id_aspek_penilaian].total / aspekValues[id_aspek_penilaian].count : 0;
+                console.log(`Aspek ${id_aspek_penilaian} menggunakan rata-rata langsung: ${nilai_rata_rata}`);
             } else {
                 console.log(`Aspek ${id_aspek_penilaian} tidak memiliki nilai, dilewati`);
                 continue;
@@ -849,7 +856,7 @@ const submitF02 = async (req, res) => {
             
             if (existingNilaiAspek) {
                 await db.Nilai_aspek.update({
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata,
                     updatedAt: new Date()
                 }, {
                     where: {
@@ -857,22 +864,21 @@ const submitF02 = async (req, res) => {
                     },
                     transaction
                 });
-                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil diupdate: ${total_nilai_indikator}`);
+                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil diupdate: ${nilai_rata_rata}`);
             } else {
                 await db.Nilai_aspek.create({
                     id_pengisian_f02: pengisianF02.id_pengisian_f02,
                     id_aspek_penilaian: id_aspek_penilaian,
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }, { transaction });
-                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
+                console.log(`Nilai aspek utama ${id_aspek_penilaian} berhasil dibuat: ${nilai_rata_rata}`);
             }
             detailedCalculation.aspects[id_aspek_penilaian] = {
                 id: id_aspek_penilaian,
                 name: aspek.nama_aspek,
-                total: total_nilai_indikator,
-                bobot: aspek.bobot_aspek
+                total: nilai_rata_rata
             };
         }
 
@@ -886,7 +892,8 @@ const submitF02 = async (req, res) => {
                 continue;
             }
             
-            const total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+            const nilai_rata_rata = aspekValues[id_aspek_penilaian].count > 0 ? 
+                aspekValues[id_aspek_penilaian].total / aspekValues[id_aspek_penilaian].count : 0;
             
             const existingNilaiAspek = await db.Nilai_aspek.findOne({
                 where: {
@@ -897,7 +904,7 @@ const submitF02 = async (req, res) => {
             
             if (existingNilaiAspek) {
                 await db.Nilai_aspek.update({
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata,
                     updatedAt: new Date()
                 }, {
                     where: {
@@ -905,23 +912,22 @@ const submitF02 = async (req, res) => {
                     },
                     transaction
                 });
-                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil diupdate: ${total_nilai_indikator}`);
+                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil diupdate: ${nilai_rata_rata}`);
             } else {
                 await db.Nilai_aspek.create({
                     id_pengisian_f02: pengisianF02.id_pengisian_f02,
                     id_aspek_penilaian: id_aspek_penilaian,
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }, { transaction });
-                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil dibuat: ${total_nilai_indikator}`);
+                console.log(`Nilai sub aspek ${id_aspek_penilaian} berhasil dibuat: ${nilai_rata_rata}`);
             }
             if (!detailedCalculation.aspects[id_aspek_penilaian]) {
                 detailedCalculation.aspects[id_aspek_penilaian] = {
                     id: id_aspek_penilaian,
                     name: aspek.nama_aspek,
-                    total: total_nilai_indikator,
-                    bobot: aspek.bobot_aspek,
+                    total: nilai_rata_rata,
                     isSubAspect: true,
                     parentId: aspek.parent_id_aspek_penilaian
                 };
@@ -929,104 +935,45 @@ const submitF02 = async (req, res) => {
         }
    
         let totalNilaiAkhir = 0;
-        detailedCalculation.finalCalculation.aspectWeightedValues = [];
+        let totalIndukAspek = 0;
+        
+        detailedCalculation.finalCalculation.aspectValues = [];
+        
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
-            let total_nilai_indikator = 0;
+            let nilai_aspek = 0;
             
             if (konsolidasiSubAspek[id_aspek_penilaian]) {
-                total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
-                console.log(`Aspek induk ${id_aspek_penilaian} menggunakan nilai terkonsolidasi dari sub aspek: ${total_nilai_indikator}`);
+                nilai_aspek = konsolidasiSubAspek[id_aspek_penilaian].total;
+                console.log(`Aspek induk ${id_aspek_penilaian} menggunakan nilai rata-rata dari sub aspek: ${nilai_aspek}`);
             } else if (aspekValues[id_aspek_penilaian]) {
-                total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
-                console.log(`Aspek induk ${id_aspek_penilaian} menggunakan nilai langsung: ${total_nilai_indikator}`);
+                nilai_aspek = aspekValues[id_aspek_penilaian].count > 0 ? 
+                    aspekValues[id_aspek_penilaian].total / aspekValues[id_aspek_penilaian].count : 0;
+                console.log(`Aspek induk ${id_aspek_penilaian} menggunakan nilai rata-rata langsung: ${nilai_aspek}`);
             } else {
                 console.log(`Aspek ${id_aspek_penilaian} tidak memiliki nilai, dilewati`);
                 continue;
             }
 
-            const bobot_aspek = parseFloat(aspek.bobot_aspek || 0);
-            console.log(`Bobot aspek dari database untuk aspek ${id_aspek_penilaian}:`, bobot_aspek);
-
-            const bobotAspekDecimal = bobot_aspek / 100;
-            const nilaiAspekTertimbang = parseFloat(total_nilai_indikator) * bobotAspekDecimal;
-            
-            console.log(`Aspek ${id_aspek_penilaian}: Nilai ${total_nilai_indikator} * Bobot ${bobotAspekDecimal} (dari ${bobot_aspek}%) = ${nilaiAspekTertimbang}`);
-            console.log('Tipe data nilai:', typeof total_nilai_indikator);
-            console.log('Tipe data bobot:', typeof bobotAspekDecimal);
-            console.log('Tipe data hasil:', typeof nilaiAspekTertimbang);
-            detailedCalculation.finalCalculation.aspectWeightedValues.push({
+            detailedCalculation.finalCalculation.aspectValues.push({
                 id: id_aspek_penilaian,
                 name: aspek.nama_aspek,
-                total: total_nilai_indikator,
-                weight: bobot_aspek,
-                weightDecimal: bobotAspekDecimal,
-                weightedValue: nilaiAspekTertimbang
+                value: nilai_aspek
             });
 
-            totalNilaiAkhir += nilaiAspekTertimbang;
-        }
-        console.log('\n========= DETAILED CALCULATION BREAKDOWN =========');
-        
-        const indicatorsByAspect = {};
-        for (const indicator of detailedCalculation.indicators) {
-            if (!indicatorsByAspect[indicator.aspectId]) {
-                indicatorsByAspect[indicator.aspectId] = {
-                    name: indicator.aspectName,
-                    indicators: []
-                };
-            }
-            indicatorsByAspect[indicator.aspectId].indicators.push(indicator);
+            totalNilaiAkhir += nilai_aspek;
+            totalIndukAspek += 1;
         }
 
-        console.log('\nINDICATOR CALCULATIONS:');
-        console.log('------------------------');
-        
-        for (const [aspectId, data] of Object.entries(indicatorsByAspect)) {
-            console.log(`\nASPECT ${aspectId}: ${data.name}`);
-            console.log('---------------------------------------------');
-            
-            let index = 1;
-            let aspectTotal = 0;
-            
-            for (const indicator of data.indicators) {
-                console.log(`${index}. Indicator: ${indicator.name}`);
-                console.log(`   Weight: ${indicator.bobot}%, Scale: ${indicator.skala}`);
-                console.log(`   Calculation: ${indicator.skala} × ${indicator.bobotDecimal} = ${indicator.nilai.toFixed(4)}`);
-                aspectTotal += indicator.nilai;
-                index++;
-            }
-            
-            console.log(`TOTAL FOR ASPECT ${aspectId}: ${aspectTotal.toFixed(4)}`);
-        }
-
-        console.log('\nASPECT WEIGHTED CALCULATIONS:');
-        console.log('-----------------------------');
-        
-        for (const aspekWeight of detailedCalculation.finalCalculation.aspectWeightedValues) {
-            console.log(`Aspect ${aspekWeight.id}: ${aspekWeight.name}`);
-            console.log(`  Total: ${aspekWeight.total.toFixed(4)} × Weight: ${aspekWeight.weight}% = ${aspekWeight.weightedValue.toFixed(4)}`);
-        }
-
-        detailedCalculation.finalCalculation.total = totalNilaiAkhir;
-        detailedCalculation.finalCalculation.finalValue = totalNilaiAkhir * 0.75;
-        
-        console.log('\nFINAL CALCULATION:');
-        console.log('------------------');
-        console.log(`Total weighted value: ${totalNilaiAkhir.toFixed(4)}`);
-        console.log(`Apply 75% multiplier: ${totalNilaiAkhir.toFixed(4)} × 0.75 = ${detailedCalculation.finalCalculation.finalValue.toFixed(4)}`);
-
-        console.log('Total nilai akhir sebelum konversi:', totalNilaiAkhir);
-
-        totalNilaiAkhir = totalNilaiAkhir * 0.75;
-        console.log('Total nilai akhir setelah mengalikan dengan 75%:', totalNilaiAkhir);
+        totalNilaiAkhir = totalIndukAspek > 0 ? totalNilaiAkhir / totalIndukAspek : 0;
+        console.log('Total nilai akhir (rata-rata dari semua induk aspek):', totalNilaiAkhir);
 
         totalNilaiAkhir = parseFloat(totalNilaiAkhir.toFixed(4));
         console.log('Total nilai akhir setelah konversi:', totalNilaiAkhir);
         
         if (totalNilaiAkhir === 0) {
             console.log('PERINGATAN: Total nilai akhir adalah 0. Ini mungkin menunjukkan masalah dalam perhitungan.');
-            console.log('Jumlah aspek yang dihitung:', Object.keys(aspekValues).length);
+            console.log('Jumlah aspek yang dihitung:', totalIndukAspek);
         }
 
         const existingNilaiAkhir = await db.Nilai_akhir.findOne({
@@ -1094,60 +1041,28 @@ const submitF02 = async (req, res) => {
                 }
             }
 
-            const nilaiRataRata = jumlahEvaluator > 0 ? totalKumulatif / jumlahEvaluator : 0;
-            const nilaiKumulatif = parseFloat(nilaiRataRata.toFixed(4)); // Increased precision to 4 decimal places
+            const nilaiKumulatif = parseFloat(totalKumulatif.toFixed(4)); 
             
-            console.log(`Total nilai kumulatif: ${totalKumulatif}, Jumlah evaluator: ${jumlahEvaluator}`);
-            console.log(`Nilai rata-rata: ${nilaiRataRata}, Nilai kumulatif: ${nilaiKumulatif}`);
+            console.log(`Total nilai kumulatif (jumlah dari semua evaluator): ${totalKumulatif}, Jumlah evaluator: ${jumlahEvaluator}`);
+            console.log(`Nilai kumulatif: ${nilaiKumulatif}`);
             
-            console.log('\nEVALUATOR CALCULATION:');
-            console.log('----------------------');
-            console.log(`Total Evaluators expected: 4`);
-            console.log(`Evaluators who have submitted: ${jumlahEvaluator}`);
-            console.log(`Current calculation method: Average of submitted evaluations (${nilaiKumulatif})`);
-            
-            function determineNewCategory(nilai) {
-                if (nilai >= 0 && nilai <= 0.13) return 'F (Gagal)';
-                if (nilai > 0.13 && nilai <= 0.2) return 'E (Sangat Buruk)';
-                if (nilai > 0.2 && nilai <= 0.27) return 'D (Buruk)';
-                if (nilai > 0.27 && nilai <= 0.33) return 'C- (Cukup dengan Catatan)';
-                if (nilai > 0.33 && nilai <= 0.4) return 'C (Cukup)';
-                if (nilai > 0.4 && nilai <= 0.47) return 'B- (Baik dengan Catatan)';
-                if (nilai > 0.47 && nilai <= 0.53) return 'B (Baik)';
-                if (nilai > 0.53 && nilai <= 0.6) return 'A- (Sangat Baik)';
-                if (nilai > 0.6 && nilai <= 0.67) return 'A (Pelayanan Prima)';
+            function determineCategory(nilai) {
+                if (nilai >= 0 && nilai <= 1) return 'F';
+                if (nilai > 1 && nilai <= 1.5) return 'E';
+                if (nilai > 1.5 && nilai <= 2) return 'D';
+                if (nilai > 2 && nilai <= 2.5) return 'C-';
+                if (nilai > 2.5 && nilai <= 3) return 'C';
+                if (nilai > 3 && nilai <= 3.5) return 'B-';
+                if (nilai > 3.5 && nilai <= 4) return 'B';
+                if (nilai > 4 && nilai <= 4.5) return 'A-';
+                if (nilai > 4.5 && nilai <= 5) return 'A';
                 return 'UNDEFINED';
             }
         
-            let kategori = '';
-            
-            if (nilaiKumulatif >= 0 && nilaiKumulatif <= 0.14) {
-                kategori = 'F'; 
-            } else if (nilaiKumulatif >= 0.141 && nilaiKumulatif <= 0.21) {
-                kategori = 'E'; 
-            } else if (nilaiKumulatif >= 0.211 && nilaiKumulatif <= 0.28) {
-                kategori = 'D'; 
-            } else if (nilaiKumulatif >= 0.281 && nilaiKumulatif <= 0.35) {
-                kategori = 'C-';  
-            } else if (nilaiKumulatif >= 0.351 && nilaiKumulatif <= 0.42) {
-                kategori = 'C'; 
-            } else if (nilaiKumulatif >= 0.421 && nilaiKumulatif <= 0.49) {
-                kategori = 'B-';  
-            } else if (nilaiKumulatif >= 0.491 && nilaiKumulatif <= 0.56) {
-                kategori = 'B'; 
-            } else if (nilaiKumulatif >= 0.561 && nilaiKumulatif <= 0.63) {
-                kategori = 'A-'; 
-            } else if (nilaiKumulatif >= 0.631 && nilaiKumulatif <= 0.71) {
-                kategori = 'A'; 
-            } else {
-                kategori = 'UNDEFINED'; 
-            }
-            
-            const newCategory = determineNewCategory(nilaiKumulatif);
+            let kategori = determineCategory(nilaiKumulatif);
             
             console.log(`\nCATEGORY DETERMINATION:`);
-            console.log(`Original scale (0-5): ${nilaiKumulatif} = ${kategori}`);
-            console.log(`New scale (0-0.67): ${nilaiKumulatif} = ${newCategory}`);
+            console.log(`Scale (0-5): ${nilaiKumulatif} = ${kategori}`);
             
             const existingNilaiKumulatif = await db.Nilai_akhir_kumulatif.findOne({
                 where: {
@@ -1195,15 +1110,12 @@ const submitF02 = async (req, res) => {
                 id_pengisian_f02: pengisianF02.id_pengisian_f02,
                 total_nilai_akhir: totalNilaiAkhir,
                 detailedCalculation: {
-                    byAspect: detailedCalculation.finalCalculation.aspectWeightedValues.map(aspect => ({
+                    byAspect: detailedCalculation.finalCalculation.aspectValues.map(aspect => ({
                         id: aspect.id,
                         name: aspect.name,
-                        total: aspect.total,
-                        bobot: aspect.weight,
-                        nilaiTertimbang: aspect.weightedValue
+                        nilai: aspect.value
                     })),
-                    totalNilai: detailedCalculation.finalCalculation.total,
-                    nilaiAkhir: detailedCalculation.finalCalculation.finalValue
+                    totalNilai: totalNilaiAkhir
                 }
             }
         });

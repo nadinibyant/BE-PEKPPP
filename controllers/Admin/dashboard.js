@@ -4,47 +4,40 @@ const sequelize = require('../../config/database')
 const { Op, where, Sequelize } = require('sequelize');
 const message = require('../../models/message');
 
-//statistik data
+//statistik data per semester
 const statsData = async (req,res) => {
     try {
         const date = new Date()
         const month = date.getMonth()
         const year = date.getFullYear()
 
-        const getCurrentQuarter = Math.floor(month/3) + 1
+        const getCurrentSemester = month < 6 ? 1 : 2
 
-        const startMonth = (getCurrentQuarter - 1) * 3
-        const endMonth = getCurrentQuarter * 3 - 1
+        const startMonth = (getCurrentSemester - 1) * 6  
+        const endMonth = getCurrentSemester * 6 - 1    
 
         const startDate = new Date(year, startMonth, 1)
-        const endDate = new Date(year, endMonth + 1, 0)
+        const endDate = new Date(year, endMonth + 1, 0) 
 
-        let quarter = null
+        let semester = null
 
-        if (getCurrentQuarter == 1) {
-            quarter =  `Q1 ${year}`
-        } else if(getCurrentQuarter == 2) {
-            quarter =  `Q2 ${year}`
-        } else if(getCurrentQuarter == 3){
-            quarter =  `Q3 ${year}`
+        if (getCurrentSemester == 1) {
+            semester = `Semester 1 ${year}`
         } else {
-            quarter =  `Q4 ${year}`
+            semester = `Semester 2 ${year}`
         }
+
 
         const getTotalOpd = await db.Opd.count({
             where: {
-              createdAt: {
-                [db.Sequelize.Op.between]: [startDate, endDate]
-              }
+              is_active: true
             }
         })
 
 
         const getTotalEvaluator = await db.Evaluator.count({
         where: {
-            createdAt: {
-            [db.Sequelize.Op.between]: [startDate, endDate]
-            }
+            is_active: true
         }
         })
 
@@ -69,7 +62,7 @@ const statsData = async (req,res) => {
             },
             {
                 name: 'quarter',
-                value: quarter
+                value: semester
             },
             {
                 name: 'izin_akses',
@@ -110,13 +103,13 @@ const getNilaiF02 = async (req,res) => {
         const month = date.getMonth()
         const year = date.getFullYear()
 
-        const getCurrentQuarter = Math.floor(month/3) + 1
+        const getCurrentSemester = month < 6 ? 1 : 2
 
-        const startMonth = (getCurrentQuarter - 1) * 3
-        const endMonth = getCurrentQuarter * 3 - 1
+        const startMonth = (getCurrentSemester - 1) * 6  
+        const endMonth = getCurrentSemester * 6 - 1    
 
         const startDate = new Date(year, startMonth, 1)
-        const endDate = new Date(year, endMonth + 1, 0)
+        const endDate = new Date(year, endMonth + 1, 0) 
 
         const findNilai = await db.Nilai_akhir_kumulatif.findAll({
             attributes: ['id_nilai_kumulatif','id_opd', 'total_kumulatif', 'kategori', 'feedback'],
@@ -172,13 +165,13 @@ const dataSumbitF01 = async (req, res) => {
         const month = date.getMonth()
         const year = date.getFullYear()
 
-        const getCurrentQuarter = Math.floor(month/3) + 1
+        const getCurrentSemester = month < 6 ? 1 : 2
 
-        const startMonth = (getCurrentQuarter - 1) * 3
-        const endMonth = getCurrentQuarter * 3 - 1
+        const startMonth = (getCurrentSemester - 1) * 6  
+        const endMonth = getCurrentSemester * 6 - 1    
 
         const startDate = new Date(year, startMonth, 1)
-        const endDate = new Date(year, endMonth + 1, 0)
+        const endDate = new Date(year, endMonth + 1, 0) 
 
         const totalOpd = await db.Opd.count()
 
@@ -222,7 +215,7 @@ const dataSumbitF01 = async (req, res) => {
             status: 200,
             message: 'Data persentase pengisian F01 berhasil diambil',
             data: {
-                quarter: getCurrentQuarter,
+                quarter: getCurrentSemester,
                 tahun: year,
                 totalOpd,
                 opdSudahSubmitF01,

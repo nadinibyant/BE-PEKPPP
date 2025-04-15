@@ -111,23 +111,23 @@ const getHasilPenilaian = async (req, res) => {
 
                     let kategori = '';
                     
-                    if (nilaiTotal >= 0 && nilaiTotal <= 0.14) {
+                    if (nilaiTotal >= 0 && nilaiTotal <= 1) {
                         kategori = 'F'; 
-                    } else if (nilaiTotal >= 0.141 && nilaiTotal <= 0.21) {
+                    } else if (nilaiTotal >= 1.01 && nilaiTotal <= 1.5) {
                         kategori = 'E'; 
-                    } else if (nilaiTotal >= 0.211 && nilaiTotal <= 0.28) {
+                    } else if (nilaiTotal >= 1.51 && nilaiTotal <= 2) {
                         kategori = 'D'; 
-                    } else if (nilaiTotal >= 0.281 && nilaiTotal <= 0.35) {
+                    } else if (nilaiTotal >= 2.01 && nilaiTotal <= 2.5) {
                         kategori = 'C-';  
-                    } else if (nilaiTotal >= 0.351 && nilaiTotal <= 0.42) {
+                    } else if (nilaiTotal >= 2.51 && nilaiTotal <= 3) {
                         kategori = 'C'; 
-                    } else if (nilaiTotal >= 0.421 && nilaiTotal <= 0.49) {
+                    } else if (nilaiTotal >= 3.01 && nilaiTotal <= 3.5) {
                         kategori = 'B-';  
-                    } else if (nilaiTotal >= 0.491 && nilaiTotal <= 0.56) {
+                    } else if (nilaiTotal >= 3.51 && nilaiTotal <= 4) {
                         kategori = 'B'; 
-                    } else if (nilaiTotal >= 0.561 && nilaiTotal <= 0.63) {
+                    } else if (nilaiTotal >= 4.01 && nilaiTotal <= 4.5) {
                         kategori = 'A-'; 
-                    } else if (nilaiTotal >= 0.631 && nilaiTotal <= 0.71) {
+                    } else if (nilaiTotal >= 4.51 && nilaiTotal <= 5) {
                         kategori = 'A'; 
                     } else {
                         kategori = 'UNDEFINED'; 
@@ -312,23 +312,23 @@ const getKategoriAndZona = (totalNilai) => {
     
     let kategori = '';
     
-    if (nilaiTotal >= 0 && nilaiTotal <= 0.14) {
+    if (nilaiTotal >= 0 && nilaiTotal <= 1) {
         kategori = 'F'; 
-    } else if (nilaiTotal >= 0.141 && nilaiTotal <= 0.21) {
+    } else if (nilaiTotal >= 1.01 && nilaiTotal <= 1.5) {
         kategori = 'E'; 
-    } else if (nilaiTotal >= 0.211 && nilaiTotal <= 0.28) {
+    } else if (nilaiTotal >= 1.51 && nilaiTotal <= 2) {
         kategori = 'D'; 
-    } else if (nilaiTotal >= 0.281 && nilaiTotal <= 0.35) {
+    } else if (nilaiTotal >= 2.01 && nilaiTotal <= 2.5) {
         kategori = 'C-';  
-    } else if (nilaiTotal >= 0.351 && nilaiTotal <= 0.42) {
+    } else if (nilaiTotal >= 2.51 && nilaiTotal <= 3) {
         kategori = 'C'; 
-    } else if (nilaiTotal >= 0.421 && nilaiTotal <= 0.49) {
+    } else if (nilaiTotal >= 3.01 && nilaiTotal <= 3.5) {
         kategori = 'B-';  
-    } else if (nilaiTotal >= 0.491 && nilaiTotal <= 0.56) {
+    } else if (nilaiTotal >= 3.51 && nilaiTotal <= 4) {
         kategori = 'B'; 
-    } else if (nilaiTotal >= 0.561 && nilaiTotal <= 0.63) {
+    } else if (nilaiTotal >= 4.01 && nilaiTotal <= 4.5) {
         kategori = 'A-'; 
-    } else if (nilaiTotal >= 0.631 && nilaiTotal <= 0.71) {
+    } else if (nilaiTotal >= 4.51 && nilaiTotal <= 5) {
         kategori = 'A'; 
     } else {
         kategori = 'UNDEFINED'; 
@@ -753,7 +753,7 @@ const detailHasilPenilaian = async (req, res) => {
         //by evaluator
         if (id_pengisian_f02) {
             data = await getIndividualAssessmentData(id_pengisian_f02);
-        } else if (id_opd && id_periode_penilaian) { // gabungan
+        } else if (id_opd && id_periode_penilaian) {
             data = await getCumulativeAssessmentData(id_opd, id_periode_penilaian);
         } else {
             throw new ValidationError('Parameter id_pengisian_f02 atau (id_opd dan id_periode_penilaian) diperlukan')
@@ -1096,11 +1096,10 @@ const editF02 = async (req, res) => {
             throw new NotFoundError(`Skala dengan ID ${id_skala} tidak ditemukan`);
         }
      
-        const bobotDecimal = parseFloat(indikator.bobot_indikator || 0) / 100;
-        const nilai_diperoleh = parseFloat(bobotDecimal * (skalaIndikator.nilai_skala || 0));
+        const nilai_diperoleh = parseInt(skalaIndikator.nilai_skala);
         
         if (nilai_diperoleh === null || nilai_diperoleh === undefined) {
-            throw new ValidationError('Perhitungan nilai menghasilkan nilai null');
+            throw new ValidationError('Nilai skala tidak valid');
         }
  
         const existingNilai = await db.nilai_indikator.findOne({
@@ -1190,7 +1189,7 @@ const editF02 = async (req, res) => {
         }
         
         for (const [id_aspek, data] of Object.entries(aspekValues)) {
-            const total_nilai_indikator = data.total;
+            const nilai_rata_rata = data.count > 0 ? data.total / data.count : 0;
             
             const existingNilaiAspek = await db.Nilai_aspek.findOne({
                 where: {
@@ -1201,7 +1200,7 @@ const editF02 = async (req, res) => {
             
             if (existingNilaiAspek) {
                 await db.Nilai_aspek.update({
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata, 
                     updatedAt: new Date()
                 }, {
                     where: {
@@ -1213,7 +1212,7 @@ const editF02 = async (req, res) => {
                 await db.Nilai_aspek.create({
                     id_pengisian_f02: id_pengisian_f02,
                     id_aspek_penilaian: id_aspek,
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata, 
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }, { transaction });
@@ -1225,18 +1224,24 @@ const editF02 = async (req, res) => {
             konsolidasiSubAspek[parentId] = {
                 total: 0,
                 count: 0,
+                totalIndicators: 0, 
                 subAspek: []
             };
 
             for (const subAspekId of subAspekList) {
                 if (aspekValues[subAspekId]) {
                     konsolidasiSubAspek[parentId].total += aspekValues[subAspekId].total;
-                    konsolidasiSubAspek[parentId].count += aspekValues[subAspekId].count;
+                    konsolidasiSubAspek[parentId].totalIndicators += aspekValues[subAspekId].count;
+                    konsolidasiSubAspek[parentId].count += 1; 
                     konsolidasiSubAspek[parentId].subAspek.push({
                         id: subAspekId,
-                        nilai: aspekValues[subAspekId].total
+                        nilai: aspekValues[subAspekId].count > 0 ? aspekValues[subAspekId].total / aspekValues[subAspekId].count : 0 
                     });
                 }
+            }
+            
+            if (konsolidasiSubAspek[parentId].totalIndicators > 0) {
+                konsolidasiSubAspek[parentId].total = konsolidasiSubAspek[parentId].total / konsolidasiSubAspek[parentId].totalIndicators;
             }
         }
         
@@ -1244,12 +1249,13 @@ const editF02 = async (req, res) => {
         
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
-            let total_nilai_indikator = 0;
+            let nilai_rata_rata = 0;
             
             if (konsolidasiSubAspek[id_aspek_penilaian]) {
-                total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
+                nilai_rata_rata = konsolidasiSubAspek[id_aspek_penilaian].total;
             } else if (aspekValues[id_aspek_penilaian]) {
-                total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+                nilai_rata_rata = aspekValues[id_aspek_penilaian].count > 0 ? 
+                    aspekValues[id_aspek_penilaian].total / aspekValues[id_aspek_penilaian].count : 0;
             } else {
                 continue;
             }
@@ -1263,7 +1269,7 @@ const editF02 = async (req, res) => {
             
             if (existingNilaiAspek) {
                 await db.Nilai_aspek.update({
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata,
                     updatedAt: new Date()
                 }, {
                     where: {
@@ -1275,34 +1281,34 @@ const editF02 = async (req, res) => {
                 await db.Nilai_aspek.create({
                     id_pengisian_f02: id_pengisian_f02,
                     id_aspek_penilaian: id_aspek_penilaian,
-                    total_nilai_indikator: total_nilai_indikator,
+                    total_nilai_indikator: nilai_rata_rata, 
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }, { transaction });
             }
         }
+        
         let totalNilaiAkhir = 0;
+        let totalIndukAspek = 0;
         
         for (const aspek of indukAspek) {
             const id_aspek_penilaian = aspek.id_aspek_penilaian;
-            let total_nilai_indikator = 0;
+            let nilai_aspek = 0;
             
             if (konsolidasiSubAspek[id_aspek_penilaian]) {
-                total_nilai_indikator = konsolidasiSubAspek[id_aspek_penilaian].total;
+                nilai_aspek = konsolidasiSubAspek[id_aspek_penilaian].total;
             } else if (aspekValues[id_aspek_penilaian]) {
-                total_nilai_indikator = aspekValues[id_aspek_penilaian].total;
+                nilai_aspek = aspekValues[id_aspek_penilaian].count > 0 ? 
+                    aspekValues[id_aspek_penilaian].total / aspekValues[id_aspek_penilaian].count : 0;
             } else {
                 continue;
             }
 
-            const bobot_aspek = parseFloat(aspek.bobot_aspek || 0);
-            const bobotAspekDecimal = bobot_aspek / 100;
-            const nilaiAspekTertimbang = parseFloat(total_nilai_indikator) * bobotAspekDecimal;
-            
-            totalNilaiAkhir += nilaiAspekTertimbang;
+            totalNilaiAkhir += nilai_aspek;
+            totalIndukAspek += 1;
         }
         
-        totalNilaiAkhir = totalNilaiAkhir * 0.75;
+        totalNilaiAkhir = totalIndukAspek > 0 ? totalNilaiAkhir / totalIndukAspek : 0;
         totalNilaiAkhir = parseFloat(totalNilaiAkhir.toFixed(4));
 
         const existingNilaiAkhir = await db.Nilai_akhir.findOne({
@@ -1329,6 +1335,7 @@ const editF02 = async (req, res) => {
                 updatedAt: new Date()
             }, { transaction });
         }
+        
         const id_opd = pengisianF02.id_opd;
         const id_periode_penilaian = pengisianF02.evaluator_periode_penilaian.periode_penilaian.id_periode_penilaian;
         
@@ -1368,32 +1375,22 @@ const editF02 = async (req, res) => {
             }
         }
         
-        const nilaiRataRata = jumlahEvaluator > 0 ? totalKumulatif / jumlahEvaluator : 0;
-        const nilaiKumulatif = parseFloat(nilaiRataRata.toFixed(4));
+        const nilaiKumulatif = parseFloat(totalKumulatif.toFixed(4));
         
-        // Perbarui: Menggunakan range kategori yang sama dengan submitF02
-        let kategori = '';
-        if (nilaiKumulatif >= 0 && nilaiKumulatif <= 0.14) {
-            kategori = 'F'; 
-        } else if (nilaiKumulatif >= 0.141 && nilaiKumulatif <= 0.21) {
-            kategori = 'E'; 
-        } else if (nilaiKumulatif >= 0.211 && nilaiKumulatif <= 0.28) {
-            kategori = 'D'; 
-        } else if (nilaiKumulatif >= 0.281 && nilaiKumulatif <= 0.35) {
-            kategori = 'C-';  
-        } else if (nilaiKumulatif >= 0.351 && nilaiKumulatif <= 0.42) {
-            kategori = 'C'; 
-        } else if (nilaiKumulatif >= 0.421 && nilaiKumulatif <= 0.49) {
-            kategori = 'B-';  
-        } else if (nilaiKumulatif >= 0.491 && nilaiKumulatif <= 0.56) {
-            kategori = 'B'; 
-        } else if (nilaiKumulatif >= 0.561 && nilaiKumulatif <= 0.63) {
-            kategori = 'A-'; 
-        } else if (nilaiKumulatif >= 0.631 && nilaiKumulatif <= 0.71) {
-            kategori = 'A'; 
-        } else {
-            kategori = 'UNDEFINED'; 
+        function determineCategory(nilai) {
+            if (nilai >= 0 && nilai <= 1) return 'F';
+            if (nilai > 1 && nilai <= 1.5) return 'E';
+            if (nilai > 1.5 && nilai <= 2) return 'D';
+            if (nilai > 2 && nilai <= 2.5) return 'C-';
+            if (nilai > 2.5 && nilai <= 3) return 'C';
+            if (nilai > 3 && nilai <= 3.5) return 'B-';
+            if (nilai > 3.5 && nilai <= 4) return 'B';
+            if (nilai > 4 && nilai <= 4.5) return 'A-';
+            if (nilai > 4.5 && nilai <= 5) return 'A';
+            return 'UNDEFINED';
         }
+    
+        let kategori = determineCategory(nilaiKumulatif);
 
         const existingNilaiKumulatif = await db.Nilai_akhir_kumulatif.findOne({
             where: {
