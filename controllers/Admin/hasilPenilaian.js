@@ -1469,4 +1469,64 @@ const editF02 = async (req, res) => {
     }
 };
 
-module.exports = {EvaluatorByPeriode, getHasilPenilaian, detailHasilPenilaian, addFeedback, detailf02, findf01, editF02}
+const getGabunganHasil = async (req,res) => {
+    try {
+        const {id_periode_penilaian} = req.query
+        const findData = await db.Nilai_akhir_kumulatif.findAll({
+            attributes: ['id_Opd', 'total_kumulatif', 'kategori', 'feedback', 'id_periode_penilaian'],
+            include: [
+                {
+                    model: db.Periode_penilaian,
+                    as: 'periode_penilaian',
+                    attributes: ['tahun_periode']
+                },
+                {
+                    model: db.Opd,
+                    as: 'opd',
+                    attributes: ['nama_opd']
+                }
+            ],
+            where: {
+                id_periode_penilaian: id_periode_penilaian
+            },
+            separate: true,
+            order: [['total_kumulatif', 'DESC']]
+        })
+
+        if (findData.lenght == 0) {
+            throw new ValidationError('Data penilaian belum tersedia')
+        }
+
+        return res.status(200).json({success:true, status:200, message: 'Data penilaian tersedia', data: findData})
+    } catch (error) {
+        console.error('Error in editF02:', error);
+        
+        if (error instanceof ValidationError) {
+            return res.status(400).json({
+                success: false,
+                status: 400,
+                message: error.message
+            });
+        } else if (error instanceof NotFoundError) {
+            return res.status(404).json({
+                success: false,
+                status: 404,
+                message: error.message
+            });
+        } else if (error instanceof ForeignKeyConstraintError) {
+            return res.status(400).json({
+                success: false,
+                status: 400,
+                message: 'Referensi data tidak valid'
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                status: 500,
+                message: 'Kesalahan Server Internal'
+            });
+        }
+    }
+}
+
+module.exports = {EvaluatorByPeriode, getHasilPenilaian, detailHasilPenilaian, addFeedback, detailf02, findf01, editF02, getGabunganHasil}

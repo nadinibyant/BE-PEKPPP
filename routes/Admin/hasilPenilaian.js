@@ -10,5 +10,6 @@ router.post('/feedback', middleware.verifyTokenUser, controllers.addFeedback)
 router.get('/detail-f02', middleware.verifyTokenUser, controllers.detailf02)
 router.get('/detail-f01', middleware.verifyTokenUser, controllers.findf01)
 router.post('/edit-f02', middleware.verifyTokenUser, controllers.editF02)
+router.get('/hasil-penilaian-all', middleware.verifyTokenUser, controllers.getGabunganHasil)
 
 module.exports = router
