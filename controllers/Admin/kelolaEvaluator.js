@@ -268,6 +268,19 @@ const editEvaluator = async (req, res) => {
             }
         }
 
+        if (nama && nama !== findEvaluator.nama) {
+            const existingNama = await db.Evaluator.findOne({
+                where:{
+                    nama: nama,
+                    id_evaluator: { [db.Sequelize.Op.ne]: findEvaluator.user.id_user }
+                },
+                transaction
+            })
+
+            if (existingNama) {
+                throw new ValidationError('Nama sudah digunakan');
+            }
+        }
         let hashedPassword;
         if (password) {
             if (password.length < 8) {

@@ -1433,23 +1433,26 @@ const editBuktiDukung = async (req,res) => {
         const {id_bukti_dukung} = req.params
         const {nama_bukti_dukung} = req.body
         const findBuktiDukung = await db.Bukti_dukung.findByPk(id_bukti_dukung, {transaction})
+        
         if (!findBuktiDukung) {
             throw new ValidationError('Data bukti dukung tidak ditemukan')
         }
         
         const id_indikator = findBuktiDukung.id_indikator;
 
-        const findNamaBukti = await db.Bukti_dukung.findOne({
-            where: {
-                id_indikator,
-                nama_bukti_dukung,
-                id_bukti_dukung: { [Op.ne]: id_bukti_dukung } 
-            },
-            transaction
-        });
+        if(nama_bukti_dukung && nama_bukti_dukung !== findBuktiDukung.nama_bukti_dukung){
+            const existingNama = await db.Bukti_dukung.findOne({
+                where: {
+                    nama_bukti_dukung,
+                    id_indikator, 
+                    id_bukti_dukung: { [db.Sequelize.Op.ne]: id_bukti_dukung} 
+                },
+                transaction
+            })
 
-        if (findNamaBukti) {
-            throw new ValidationError(`Nama bukti dukung "${nama_bukti_dukung}" sudah digunakan`);
+            if (existingNama) {
+                throw new ValidationError(`Nama bukti dukung "${nama_bukti_dukung}" sudah digunakan untuk indikator ini`);
+            }
         }
 
         await db.Bukti_dukung.update({
@@ -1460,12 +1463,12 @@ const editBuktiDukung = async (req,res) => {
         })
 
         const updateData = await db.Bukti_dukung.findByPk(id_bukti_dukung, {
-            attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan']
+            attributes: ['id_bukti_dukung', 'nama_bukti_dukung', 'urutan'],
+            transaction
         })
 
         await transaction.commit()
         
-    
         return res.status(200).json({success:true, status: 200, message: 'Data bukti dukung berhasil diperbaharu', data: updateData})
 
     } catch (error) {
