@@ -750,11 +750,11 @@ const notifIzinAccOpd = async (id_izin_hasil_penilaian) => {
         const findIzinPenilaian = await db.Izin_hasil_penilaian.findByPk(id_izin_hasil_penilaian, {
             include: [
                 {
-                    model: db.Opd,
+                    model: db.Opd.unscoped(),
                     as: 'opd'
                 },
                 {
-                    model: db.Evaluator,
+                    model: db.Evaluator.unscoped(),
                     as: 'evaluator'
                 }
             ]

@@ -15,8 +15,8 @@ const { ValidationError } = require('../utils/error');
 module.exports = (db) => {
     console.log('Inisialisasi cron job...');
     
-        // Task tiap 30 detik
-        const updateStatusTask = cron.schedule('*/30 * * * * *', async () => {
+        // Task tiap jam 1 malam
+        const updateStatusTask = cron.schedule('0 0 1 * * *', async () => {
           console.log('Menjalankan tugas update status periode...', new Date());
           
           try {

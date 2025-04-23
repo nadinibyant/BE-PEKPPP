@@ -163,8 +163,9 @@ const accIzinPenilaian = async (req, res) => {
                 },
                 transaction
             });
-            
+        
             await transaction.commit();
+            await new Promise(resolve => setTimeout(resolve, 500));
             const notificationResults = await notifIzinAccOpd(id_izin_hasil_penilaian)
             return res.status(200).json({
                 success: true, 

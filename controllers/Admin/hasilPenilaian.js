@@ -377,9 +377,10 @@ const getIndividualAssessmentData = async (id_pengisian_f02) => {
                         ],
                         include: [
                             {
-                                model: db.Indikator,
+                                model: db.Indikator.scope('allRecords'),
                                 as: 'Indikators',
-                                attributes: ['id_indikator', 'nama_indikator'],
+                                attributes: ['id_indikator', 'nama_indikator', 'is_active'],
+                                required: false,
                                 include: [
                                     {
                                         model: db.nilai_indikator,
@@ -388,7 +389,7 @@ const getIndividualAssessmentData = async (id_pengisian_f02) => {
                                         where: {
                                             id_pengisian_f02
                                         },
-                                        required: false
+                                        required: true
                                     }
                                 ]
                             }
@@ -601,8 +602,9 @@ const getCumulativeAssessmentData = async (id_opd, id_periode_penilaian) => {
         },
         include: [
             {
-                model: db.Indikator,
+                model: db.Indikator.scope('allRecords'),
                 as: 'indikator',
+                required: false,
                 attributes: ['id_indikator', 'nama_indikator', 'id_aspek_penilaian']
             }
         ],
