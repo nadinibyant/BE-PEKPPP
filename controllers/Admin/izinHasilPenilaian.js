@@ -254,7 +254,6 @@ const declineIzin = async (req, res) => {
         transaction = await sequelize.transaction();
 
         const findIzin = await db.Izin_hasil_penilaian.findByPk(id_izin_hasil_penilaian, { 
-            transaction,
             lock: true 
         });
         
@@ -279,9 +278,10 @@ const declineIzin = async (req, res) => {
         if (updateResult[0] === 0) {
             throw new ValidationError('Gagal mengupdate status izin, mungkin sudah diproses oleh pengguna lain');
         }
+        const notificationResults = await notifIzinDecOpd(id_izin_hasil_penilaian)
+
         await transaction.commit();
 
-        const notificationResults = await notifIzinDecOpd(id_izin_hasil_penilaian)
         
         return res.status(200).json({
             success: true, 

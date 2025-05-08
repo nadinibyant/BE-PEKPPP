@@ -683,11 +683,13 @@ const notifIzinDecOpd = async (id_izin_hasil_penilaian) => {
             include: [
                 {
                     model: db.Opd,
-                    as: 'opd'
+                    as: 'opd',
+                    required: false, 
                 },
                 {
                     model: db.Evaluator,
-                    as: 'evaluator'
+                    as: 'evaluator',
+                    required: false, 
                 }
             ]
         });
@@ -751,11 +753,13 @@ const notifIzinAccOpd = async (id_izin_hasil_penilaian) => {
             include: [
                 {
                     model: db.Opd.unscoped(),
-                    as: 'opd'
+                    as: 'opd',
+                    required: false
                 },
                 {
                     model: db.Evaluator.unscoped(),
-                    as: 'evaluator'
+                    as: 'evaluator',
+                    required: false
                 }
             ]
         });
@@ -819,11 +823,13 @@ const notifIzinAllAcc = async () => {
             include: [
                 {
                     model: db.Opd,
-                    as: 'opd'
+                    as: 'opd',
+                    required: false
                 }, 
                 {
                     model: db.Evaluator,
-                    as: 'evaluator'
+                    as: 'evaluator',
+                    required: false
                 }
             ],
             where: {

@@ -179,7 +179,12 @@ const statusFormulir = async (req, res) => {
             createdAt: null
         }
         
-        if (findPeriode) {
+        if (f01Status === 'Ditolak' || f01Status === 'Menunggu Verifikasi') {
+            statusF02 = {
+                status: 'Menunggu F-01 Disetujui',
+                createdAt: null
+            }
+        } else if (findPeriode) {
             const totalEvaluator = findPeriode.evaluator_periode_penilaians.length
 
             const findF02 = await db.Pengisian_f02.findAll({
@@ -219,6 +224,7 @@ const statusFormulir = async (req, res) => {
                 }
             }
         }
+        
         const formattedData = {
             f01Status: f01Status, 
             f02Status: statusF02.status,
