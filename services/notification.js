@@ -918,6 +918,85 @@ const notifIzinAllAcc = async () => {
     }
 };
 
+const notifPengisianF02 = async (id_periode_penilaian) => {
+    try {
+        if (!id_periode_penilaian) {
+            throw new ValidationError('ID periode penilaian diperlukan untuk notifikasi');
+        }
+
+        const findEvaluator = await db.Evaluator_periode_penilaian.findAll({
+            include: [
+                {
+                    model: db.Periode_penilaian,
+                    as: 'periode_penilaian',
+                    where: {
+                        id_periode_penilaian
+                    }
+                },
+                {
+                    model: db.Evaluator,
+                    as: 'evaluator',
+                    attributes: ['no_hp']
+                }
+            ]
+        });
+
+        if (findEvaluator.length === 0) {
+            throw new ValidationError('Data evaluator pada tahun sekarang belum tersedia');
+        }
+
+        const message = `*Pengisian Penilaian F-02*\n\nSilahkan lakukan pengisian penilaian F-02 segera!! Penilaian F-01 salah satu OPD sudah disetujui oleh Admin.\n\nTerimakasih.`;
+        const notificationResults = [];
+        
+        const sentPhoneNumbers = new Set();
+        
+        for (const evaluator of findEvaluator) {
+            // Pastikan kita mengakses no_hp dari model evaluator dengan benar
+            let phoneNumber = evaluator.evaluator?.no_hp;
+
+            if (phoneNumber && !sentPhoneNumbers.has(phoneNumber)) {
+                sentPhoneNumbers.add(phoneNumber);
+                
+                try {
+                    const result = await sendWhatsAppMessage(phoneNumber, message);
+                    
+                    notificationResults.push({
+                        phoneNumber: phoneNumber,
+                        success: result.success,
+                        error: result.error || null
+                    });
+                    
+                    // Delay 1 detik antara pengiriman pesan
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (error) {
+                    console.error(`Gagal mengirim notifikasi`, error);
+                    notificationResults.push({
+                        phoneNumber: phoneNumber,
+                        success: false,
+                        error: error.message || 'Unknown error'
+                    });
+                }
+            }
+        }
+
+        const successCount = notificationResults.filter(r => r.success).length;
+        
+        return {
+            success: successCount > 0,
+            message: `Berhasil mengirim notifikasi ke ${successCount} penerima`,
+            details: notificationResults
+        };
+
+    } catch (error) {
+        console.error('Error saat mengirim notifikasi:', error);
+        return {
+            success: false,
+            message: error.message || 'Gagal mengirim notifikasi',
+            error: error.name || 'UnknownError'
+        };
+    }
+};
+
 module.exports = {
     notifPeriodToAllOpd,
     notifPeriodToAllEvaluator,
@@ -934,5 +1013,6 @@ module.exports = {
     notifAllAccF01,
     notifIzinDecOpd,
     notifIzinAccOpd,
-    notifIzinAllAcc
+    notifIzinAllAcc,
+    notifPengisianF02
 };

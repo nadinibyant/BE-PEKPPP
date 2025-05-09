@@ -2,7 +2,7 @@ const {ValidationError, NotFoundError} = require('../../utils/error')
 const db = require('../../models')
 const sequelize = require('../../config/database')
 const { Op, where, Sequelize } = require('sequelize');
-const { notifDecF01, notifAccF01, notifAllAccF01 } = require('../../services/notification');
+const { notifDecF01, notifAccF01, notifAllAccF01, notifPengisianF02 } = require('../../services/notification');
 
 const getDataVerifikasi = async (req, res) => {
     try {
@@ -357,13 +357,38 @@ const detailVerifikasi = async (req, res) => {
 //setuju
 const accVerify = async (req, res) => {
     let transaction;
-    let notificationResult = null
+    let notificationResult = null;
+    let notificationF02Result = null;
+    
     try {
         transaction = await sequelize.transaction();
 
         const {id_pengisian_f01} = req.query;
 
         if (!id_pengisian_f01) {
+            const pendingForms = await db.Pengisian_f01.findAll({
+                where: { 
+                    status_pengisian: 'Menunggu Verifikasi'
+                },
+                include: [
+                    {
+                        model: db.Periode_penilaian,
+                        as: 'periode_penilaian',
+                        attributes: ['id_periode_penilaian']
+                    }
+                ]
+            });
+
+            if (pendingForms.length === 0) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false, 
+                    status: 404, 
+                    message: 'Tidak ada data pengisian F01 yang menunggu verifikasi'
+                });
+            }
+            const id_periode_penilaian = pendingForms[0].periode_penilaian?.id_periode_penilaian;
+
             const updateResult = await db.Pengisian_f01.update(
                 { status_pengisian: 'Disetujui' },
                 { 
@@ -375,12 +400,21 @@ const accVerify = async (req, res) => {
             );
             
             await transaction.commit();
-            notificationResult = await notifAllAccF01()
+            
+            notificationResult = await notifAllAccF01();
+            
+            if (id_periode_penilaian) {
+                notificationF02Result = await notifPengisianF02(id_periode_penilaian);
+            }
             
             return res.status(200).json({
                 success: true,
                 status: 200,
-                message: 'Semua data pengisian F01 berhasil disetujui'
+                message: 'Semua data pengisian F01 berhasil disetujui',
+                notifikasi: {
+                    opdNotification: notificationResult?.message || 'Tidak ada notifikasi',
+                    evaluatorNotification: notificationF02Result?.message || 'Tidak ada notifikasi evaluator'
+                }
             });
         } else {
             const existingData = await db.Pengisian_f01.findByPk(id_pengisian_f01, {
@@ -389,9 +423,15 @@ const accVerify = async (req, res) => {
                         model: db.Opd,
                         as: 'opd',
                         attributes: ['id_opd']
+                    },
+                    {
+                        model: db.Periode_penilaian,
+                        as: 'periode_penilaian',
+                        attributes: ['id_periode_penilaian']
                     }
                 ]
             });
+            
             if (!existingData) {
                 await transaction.rollback();
                 return res.status(404).json({
@@ -411,13 +451,20 @@ const accVerify = async (req, res) => {
             
             await transaction.commit();
 
-            notificationResult = await notifAccF01(existingData.opd.id_opd)
+            notificationResult = await notifAccF01(existingData.opd.id_opd);
+            
+            if (existingData.periode_penilaian?.id_periode_penilaian) {
+                notificationF02Result = await notifPengisianF02(existingData.periode_penilaian.id_periode_penilaian);
+            }
 
             return res.status(200).json({
                 success: true, 
                 status: 200, 
                 message: 'Data pengisian F01 berhasil disetujui',
-                notifikasi: notificationResult.message
+                notifikasi: {
+                    opdNotification: notificationResult?.message || 'Tidak ada notifikasi',
+                    evaluatorNotification: notificationF02Result?.message || 'Tidak ada notifikasi evaluator'
+                }
             });
         }
         

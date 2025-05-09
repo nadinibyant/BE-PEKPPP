@@ -10,14 +10,6 @@ const getPenilaianOpdList = async (req, res) => {
         const date = new Date()
         const year = date.getFullYear()
 
-        const findAllOpd = await db.Opd.findAll({
-            attributes: ['id_opd', 'nama_opd']
-        })
-        
-        if (!findAllOpd || findAllOpd.length === 0) {
-            throw new ValidationError('Data OPD belum tersedia')
-        }
-
         const findEvaluatorPeriode = await db.Evaluator_periode_penilaian.findOne({
             include: [
                 {
@@ -42,9 +34,52 @@ const getPenilaianOpdList = async (req, res) => {
             throw new NotFoundError('Evaluator tidak terdaftar pada periode saat ini')
         }
 
+        const approvedOpdIds = await db.Pengisian_f01.findAll({
+            where: {
+                status_pengisian: 'Disetujui'
+            },
+            include: [
+                {
+                    model: db.Periode_penilaian,
+                    as: 'periode_penilaian',
+                    where: {
+                        tahun_periode: year
+                    }
+                }
+            ],
+            attributes: ['id_opd']
+        });
+
+        if (approvedOpdIds.length === 0) {
+            return res.status(200).json({
+                success: true,
+                status: 200,
+                message: 'Tidak ada OPD yang formulir F01-nya telah disetujui',
+                data: []
+            });
+        }
+
+        const opdIds = approvedOpdIds.map(item => item.id_opd);
+
+        const findAllOpd = await db.Opd.findAll({
+            where: {
+                id_opd: {
+                    [Op.in]: opdIds
+                }
+            },
+            attributes: ['id_opd', 'nama_opd']
+        });
+        
+        if (!findAllOpd || findAllOpd.length === 0) {
+            throw new ValidationError('Data OPD dengan formulir F01 yang disetujui tidak ditemukan')
+        }
+
         const findPengisianF02 = await db.Pengisian_f02.findAll({
             where: {
-                id_evaluator_periode_penilaian: findEvaluatorPeriode.id_evaluator_periode_penilaian
+                id_evaluator_periode_penilaian: findEvaluatorPeriode.id_evaluator_periode_penilaian,
+                id_opd: {
+                    [Op.in]: opdIds
+                }
             },
             include: [
                 {
@@ -58,7 +93,7 @@ const getPenilaianOpdList = async (req, res) => {
                     attributes: ['total_nilai']
                 }
             ]
-        })
+        });
 
         const evaluatedOpdMap = {}
         findPengisianF02.forEach(pengisian => {
@@ -67,7 +102,7 @@ const getPenilaianOpdList = async (req, res) => {
                 skor: pengisian.nilai_akhir ? pengisian.nilai_akhir.total_nilai : 0,
                 status: 'Sudah Dievaluasi'
             }
-        })
+        });
 
         const getKategoriDanZona = (nilaiTotal) => {
             let kategori = 'UNDEFINED'
@@ -122,7 +157,7 @@ const getPenilaianOpdList = async (req, res) => {
                 periode: year.toString(),
                 indicator: evaluatedData.status === 'Belum Dievaluasi' ? 'belum' : zona
             }
-        })
+        });
 
         return res.status(200).json({
             success: true,
