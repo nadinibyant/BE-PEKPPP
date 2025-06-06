@@ -123,6 +123,8 @@ const getQuestF02 = async (req, res) => {
           {
             model: db.Aspek_penilaian,
             as: 'ChildAspeks',
+            where:{is_active: true},
+            required: false,
             attributes: ['id_aspek_penilaian', 'nama_aspek', 'urutan'],
             separate: true,
             order: [
@@ -1041,7 +1043,8 @@ const submitF02 = async (req, res) => {
                 }
             }
 
-            const nilaiKumulatif = parseFloat(totalKumulatif.toFixed(4)); 
+            const nilaiKumulatif = jumlahEvaluator > 0 ? 
+                parseFloat((totalKumulatif / jumlahEvaluator).toFixed(4)) : 0;
             
             console.log(`Total nilai kumulatif (jumlah dari semua evaluator): ${totalKumulatif}, Jumlah evaluator: ${jumlahEvaluator}`);
             console.log(`Nilai kumulatif: ${nilaiKumulatif}`);
